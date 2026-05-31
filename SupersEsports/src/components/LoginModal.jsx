@@ -3,16 +3,20 @@ import ReactDOM from 'react-dom';
 import axios from 'axios';
 import Swal from 'sweetalert2';
 
+// 🔥 SMART URL JUGAD: Localhost par local chalaega, Vercel par Render chalaega
+const API_URL = window.location.hostname === "localhost" 
+  ? "http://localhost:5000" 
+  : "https://supers-esports-backend.onrender.com"; // 👈 Dono jagah same Render URL rakhein
+
 function LoginModal({ isOpen, onClose, onLoginSuccess }) {
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   
-  // Backend ke model se match karne ke liye name aur phone use kiya
   const [formData, setFormData] = useState({
-    name: '',     // Changed from username
+    name: '',     
     email: '',
     password: '',
-    phone: '',    // Changed from whatsapp
+    phone: '',    
     ign: ''
   });
 
@@ -24,19 +28,18 @@ function LoginModal({ isOpen, onClose, onLoginSuccess }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
+    loading(true);
     
     const endpoint = isLogin ? '/api/auth/login' : '/api/auth/signup';
     
     try {
-      const res = await axios.post(`http://localhost:5000${endpoint}`, formData);
+      // 🔥 REPLACED LOCALHOST CONCATENATION WITH DYNAMIC API_URL
+      const res = await axios.post(`${API_URL}${endpoint}`, formData);
       
       if (isLogin) {
-        // 1. Browser ki memory (LocalStorage) mein data save karo
         localStorage.setItem('token', res.data.token);
         localStorage.setItem('user', JSON.stringify(res.data.user));
         
-        // 2. App.jsx ki state update karo (Isse refresh par login rahega)
         onLoginSuccess(res.data.user); 
         onClose();
         

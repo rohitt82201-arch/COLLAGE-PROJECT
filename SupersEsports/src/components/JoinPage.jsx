@@ -3,6 +3,11 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import Swal from 'sweetalert2';
 
+// 🔥 SMART URL JUGAD: Localhost par local chalaega, Vercel par Render chalaega
+const API_URL = window.location.hostname === "localhost" 
+  ? "http://localhost:5000" 
+  : "https://supers-esports-backend.onrender.com"; // 👈 Agar aapka Render URL alag hai toh yahan badlein
+
 function JoinPage() {
   const { id } = useParams(); 
   const location = useLocation();
@@ -36,8 +41,10 @@ function JoinPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem("token");
+      
+      // 🔥 REPLACED LOCALHOST WITH LIVE API_URL
       await axios.post(
-        "http://localhost:5000/api/tournaments/join",
+        `${API_URL}/api/tournaments/join`,
         { 
           tournamentId: id, 
           utr: utr, 
@@ -119,7 +126,6 @@ function JoinPage() {
 
             <div className="flex flex-col items-center py-2 sm:py-4 bg-black/30 rounded-xl sm:rounded-2xl border border-white/5">
               <div className="w-32 h-32 sm:w-40 sm:h-40 bg-white p-2 rounded-xl mb-2 shadow-inner">
-                {/* FIX: Path ke aage '/' lagaya taaki public folder se direct load ho ske */}
                 <img src="/payment2.jpeg" alt="thakurrohit4546@oksbi" className="w-full h-full object-contain" />
               </div>
               <p className="text-[9px] sm:text-[10px] text-zinc-500 font-black uppercase tracking-widest">
@@ -164,7 +170,7 @@ function JoinPage() {
         )}
       </div>
 
-      {/* -----------------  CLEAN RULES SECTION ----------------- */}
+      {/* --- RULES SECTION --- */}
       <div className="w-full max-w-xl mt-12 bg-black border border-white/5 rounded-3xl p-6 sm:p-8 shadow-xl">
         <div className="flex items-center gap-2 mb-6 border-b border-white/5 pb-3">
           <span className="text-orange-500 font-bold text-base">⚠️</span>

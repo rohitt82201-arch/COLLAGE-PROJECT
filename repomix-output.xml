@@ -1,0 +1,2699 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+backend/middleware/authMiddleware.js
+backend/models/Tournament.js
+backend/models/User.js
+backend/package.json
+backend/routes/authRoutes.js
+backend/routes/tournamentRoutes.js
+backend/routes/userRoutes.js
+backend/seed.js
+backend/server.js
+package.json
+SupersEsports/.gitignore
+SupersEsports/eslint.config.js
+SupersEsports/index.html
+SupersEsports/package.json
+SupersEsports/public/Banner0.jpg
+SupersEsports/public/banner3.png
+SupersEsports/public/bgmi.jpg
+SupersEsports/public/card1.png
+SupersEsports/public/card2.png
+SupersEsports/public/card3.png
+SupersEsports/public/card4.png
+SupersEsports/public/card5.png
+SupersEsports/public/card6.png
+SupersEsports/public/favicon.svg
+SupersEsports/public/icons.svg
+SupersEsports/public/payment.jpeg
+SupersEsports/public/payment2.jpeg
+SupersEsports/public/qr_placeholder.png
+SupersEsports/public/topplayers.jpg
+SupersEsports/public/tournaments.png
+SupersEsports/public/valo.jpg
+SupersEsports/README.md
+SupersEsports/src/App.css
+SupersEsports/src/App.jsx
+SupersEsports/src/assets/hero.png
+SupersEsports/src/assets/react.svg
+SupersEsports/src/assets/vite.svg
+SupersEsports/src/components/Community.jsx
+SupersEsports/src/components/Footer.jsx
+SupersEsports/src/components/Intro.jsx
+SupersEsports/src/components/JoinPage.jsx
+SupersEsports/src/components/Leaderboard.jsx
+SupersEsports/src/components/LoginModal.jsx
+SupersEsports/src/components/Navbar.jsx
+SupersEsports/src/components/ProtectedRoute.jsx
+SupersEsports/src/components/TournamentCard.jsx
+SupersEsports/src/components/TournamentSection.jsx
+SupersEsports/src/components/UpcomingCategories.jsx
+SupersEsports/src/index.css
+SupersEsports/src/main.jsx
+SupersEsports/src/pages/ProfilePage.jsx
+SupersEsports/vite.config.js
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="backend/middleware/authMiddleware.js">
+const jwt = require('jsonwebtoken');
+const User = require('../models/User');
+
+const protect = async (req, res, next) => {
+    let token;
+
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+        try {
+            token = req.headers.authorization.split(' ')[1];
+            // Secret key hamesha authRoutes wali hi honi chahiye
+            const decoded = jwt.verify(token, 'YOUR_SECRET_KEY'); 
+
+            req.user = await User.findById(decoded.id).select('-password');
+            next();
+        } catch (error) {
+            res.status(401).json({ message: 'Not authorized, token failed' });
+        }
+    }
+
+    if (!token) {
+        res.status(401).json({ message: 'No token, authorization denied' });
+    }
+};
+
+module.exports = { protect };
+</file>
+
+<file path="backend/models/Tournament.js">
+const express = require('express');
+const router = express.Router();
+const User = require('../models/User'); 
+const { protect } = require('../middleware/authMiddleware');
+const mongoose = require('mongoose');
+
+// @route   POST /api/tournaments/join
+// @desc    Join a tournament (Bypasses restriction for dummy IDs)
+router.post('/join', protect, async (req, res) => {
+    try {
+        const { tournamentId, utr, squadName } = req.body;
+        const userId = req.user.id;
+
+        // 1. DUMMY ID VALIDATION BYPASS
+        // Testing ko smooth rakhne ke liye ab Validation restriction block nahi karega
+        /*
+        if (!mongoose.Types.ObjectId.isValid(tournamentId)) {
+            return res.status(400).json({ 
+                message: "Invalid Tournament ID! Please click 'Join' from a valid tournament card." 
+            });
+        }
+        */
+
+        // 2. CHECK IF ALREADY JOINED
+        const userCheck = await User.findOne({ 
+            _id: userId, 
+            "joinedTournaments.tournamentId": tournamentId 
+        });
+
+        if (userCheck) {
+            return res.status(400).json({ message: "Bhai, aapne is tournament mein pehle hi register kar liya hai!" });
+        }
+
+        // 3. ATOMIC UPDATE
+        const updatedUser = await User.findByIdAndUpdate(
+            userId,
+            {
+                $push: {
+                    joinedTournaments: {
+                        tournamentId: tournamentId, // Can be dummy string or real ObjectId string
+                        squadName: squadName,
+                        paymentId: utr,
+                        status: 'Pending'
+                    }
+                }
+            },
+            { 
+                new: true, 
+                runValidators: false 
+            }
+        );
+
+        if (!updatedUser) {
+            return res.status(404).json({ message: "User account nahi mila!" });
+        }
+
+        console.log(`Success: ${squadName} joined tournament ${tournamentId}`);
+        res.status(200).json({ message: "Registration successful! Admin verify karega." });
+
+    } catch (error) {
+        console.error("BACKEND ERROR:", error.message);
+        res.status(500).json({ message: "Server error occurred", detail: error.message });
+    }
+});
+
+
+// models/Tournament.js
+const tournamentSchema = new mongoose.Schema({
+  title: String,
+  totalSlots: Number,
+  joinedUsers: Array,
+  // YE TEEN FIELDS HONI CHAHIYE:
+  startTime: { type: Date },
+  roomId: { type: String, default: "" },
+  roomPassword: { type: String, default: "" }
+});
+// @route   GET /api/tournaments/my-matches
+// @desc    Fetch joined tournaments with details (Safe for Dummy Data)
+router.get('/my-matches', protect, async (req, res) => {
+    try {
+        // Agar database mein real dynamic entries na ho, toh crash hone se bachane ke liye safe search chalegi
+        const user = await User.findById(req.user.id).populate({
+            path: 'joinedTournaments.tournamentId',
+            strictPopulate: false // Yeh lagane se dummy ID error nahi degi
+        });
+        
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        res.status(200).json(user.joinedTournaments);
+    } catch (error) {
+        console.error("Fetch Error:", error);
+        res.status(500).json({ message: "Matches fetch karne mein error aayi" });
+    }
+});
+
+module.exports = router;
+</file>
+
+<file path="backend/models/User.js">
+const mongoose = require('mongoose');
+
+const userSchema = new mongoose.Schema({
+    // Basic User Details
+    name: {
+        type: String,
+        required: true
+    },
+    email: {
+        type: String,
+        required: true,
+        unique: true
+    },
+    password: {
+        type: String,
+        required: true
+    },
+    ign: { // In-Game Name (Free Fire ID)
+        type: String,
+        required: true
+    },
+    phone: {
+        type: String,
+        required: true
+    },
+
+    // Tournaments Linking Section 
+    joinedTournaments: [
+        {
+            tournamentId: {
+                type: String, // String testing aur compatibility dono ke liye sahi hai
+                ref: 'Tournament', 
+                required: true
+            },
+            // 🔥 YEH NAYA FIELD HAI: Confusion door karne ke liye direct title save hoga
+            tournamentTitle: {
+                type: String,
+                required: true
+            },
+            squadName: {
+                type: String,
+                required: true
+            },
+            paymentId: { 
+                type: String,
+                required: true
+            },
+            status: {
+                type: String,
+                // Screenshot ke 'APPROVED' aur 'Approved' dono cases ko handle karne ke liye enum update kiya
+                enum: ['Pending', 'Confirmed', 'Rejected', 'Approved', 'APPROVED'],
+                default: 'Pending'
+            },
+            joinedAt: {
+                type: Date,
+                default: Date.now
+            }
+        }
+    ],
+
+    isAdmin: {
+        type: Boolean,
+        default: false
+    }
+}, {
+    timestamps: true 
+});
+
+const User = mongoose.model('User', userSchema);
+
+module.exports = User;
+</file>
+
+<file path="backend/package.json">
+{
+  "name": "server",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.6.1"
+  }
+}
+</file>
+
+<file path="backend/routes/authRoutes.js">
+const express = require('express');
+const router = express.Router();
+const User = require('../models/User');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+
+// --- AUTH MIDDLEWARE (Isse bina login wala user /me nahi dekh payega) ---
+const protect = async (req, res, next) => {
+    let token;
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+        try {
+            token = req.headers.authorization.split(' ')[1];
+            const decoded = jwt.verify(token, 'YOUR_SECRET_KEY'); // Ensure this matches login
+            req.user = await User.findById(decoded.id).select('-password');
+            next();
+        } catch (error) {
+            res.status(401).json({ message: 'Not authorized, token failed' });
+        }
+    }
+    if (!token) {
+        res.status(401).json({ message: 'Not authorized, no token' });
+    }
+};
+
+// 1. SIGNUP
+router.post('/signup', async (req, res) => {
+    try {
+        const { name, email, password, phone, ign } = req.body;
+
+        const userExists = await User.findOne({ email });
+        if (userExists) {
+            return res.status(400).json({ message: "Email already registered" });
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+        
+        const newUser = new User({ 
+            name, 
+            email, 
+            password: hashedPassword, 
+            phone, 
+            ign 
+        });
+
+        await newUser.save();
+        res.status(201).json({ message: "User registered successfully!" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 2. PROFILE ROUTE (Isse hi Profile Page par data dikhega)
+router.get('/me', protect, async (req, res) => {
+    try {
+        // .populate('joinedTournaments') se tournaments ki details milengi
+        const user = await User.findById(req.user.id).populate('joinedTournaments');
+        res.json(user);
+    } catch (err) {
+        res.status(500).json({ message: "Server Error" });
+    }
+});
+
+// 3. LOGIN
+router.post('/login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        const user = await User.findOne({ email });
+        
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+            return res.status(400).json({ message: "Invalid credentials" });
+        }
+
+        const token = jwt.sign({ id: user._id }, 'YOUR_SECRET_KEY', { expiresIn: '1d' });
+        
+        res.json({ 
+            token, 
+            user: { 
+                id: user._id, 
+                name: user.name, 
+                ign: user.ign,
+                email: user.email,
+                phone: user.phone
+            } 
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+module.exports = router;
+</file>
+
+<file path="backend/routes/tournamentRoutes.js">
+const express = require('express');
+const router = express.Router();
+const User = require('../models/User');
+const { protect } = require('../middleware/authMiddleware');
+const mongoose = require('mongoose');
+
+// --- TOURNAMENT SCHEMA REGISTRATION FIX ---
+let Tournament;
+if (mongoose.models.Tournament) {
+    Tournament = mongoose.model('Tournament');
+} else {
+    const tournamentSchema = new mongoose.Schema({
+        title: String,
+        totalSlots: Number,
+        joinedUsers: Array,
+        startTime: { type: Date },
+        roomId: { type: String, default: "" },
+        roomPassword: { type: String, default: "" }
+    });
+    Tournament = mongoose.model('Tournament', tournamentSchema);
+}
+
+// 🌐 1. Fetch ALL Tournaments For Frontend Card Shuffling
+// @route   GET /api/tournaments
+// @desc    Get all tournaments from database
+router.get('/', async (req, res) => {
+    try {
+        // Database se saare tournaments uthao
+        const allTournaments = await Tournament.find({}).lean();
+        res.status(200).json(allTournaments);
+    } catch (error) {
+        console.error("Error fetching all tournaments:", error);
+        res.status(500).json({ message: "Server Error", error: error.message });
+    }
+});
+
+// @route   POST /api/tournaments/join
+// @desc    Join a specific tournament and save info inside user data
+router.post('/join', protect, async (req, res) => {
+    try {
+        const { tournamentId, utr, squadName } = req.body;
+        const userId = req.user.id;
+
+        // 1. Validation: Pehle check karo user pehle se registered toh nahi hai
+        const userCheck = await User.findOne({ 
+            _id: userId, 
+            "joinedTournaments.tournamentId": tournamentId 
+        });
+
+        if (userCheck) {
+            return res.status(400).json({ message: "Bhai, aapne is tournament mein pehle hi register kar liya hai!" });
+        }
+
+        const isValidId = mongoose.Types.ObjectId.isValid(tournamentId);
+        if (!isValidId) {
+            return res.status(400).json({ message: "Bhai, tournament ki ID sahi nahi hai!" });
+        }
+
+        // 2. Tournament dhoondo taaki uska Title aur Slots verify kar sakein
+        const tournament = await Tournament.findById(tournamentId);
+        if (!tournament) {
+            return res.status(404).json({ message: "Bhai, yeh tournament database mein nahi mila!" });
+        }
+
+        // 3. Slots Validation
+        const currentJoined = tournament.joinedUsers ? tournament.joinedUsers.length : 0;
+        if (currentJoined >= tournament.totalSlots) {
+            return res.status(400).json({ message: "Bhai, is tournament ke saare slots full ho chuke hain!" });
+        }
+
+        // 4. Tournament mein user ID push karo live slots update ke liye
+        await Tournament.findByIdAndUpdate(tournamentId, {
+            $addToSet: { joinedUsers: userId }
+        });
+
+        // 🔥 5. User collection mein tournamentId ke SATH tournamentTitle bhi save karo
+        await User.findByIdAndUpdate(
+            userId,
+            {
+                $push: {
+                    joinedTournaments: {
+                        tournamentId: tournamentId,
+                        tournamentTitle: tournament.title || "Free Fire Tournament", // <-- Yeh line direct database mein Title degi
+                        squadName: squadName,
+                        paymentId: utr,
+                        status: 'Pending',
+                        joinedAt: new Date()
+                    }
+                }
+            },
+            { new: true, runValidators: false }
+        );
+
+        res.status(200).json({ message: "Registration successful! Slots updated live." });
+    } catch (error) {
+        console.error("Join Error:", error);
+        res.status(500).json({ message: "Server Error" });
+    }
+});
+
+// @route   GET /api/tournaments/my-matches
+router.get('/my-matches', protect, async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id).select('joinedTournaments').lean();
+        
+        if (!user || !user.joinedTournaments) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        const populatedTournaments = await Promise.all(user.joinedTournaments.map(async (item) => {
+            const isValidId = mongoose.Types.ObjectId.isValid(item.tournamentId);
+            
+            let tournamentDetails = null;
+            if (isValidId) {
+                tournamentDetails = await Tournament.findById(item.tournamentId).lean();
+            }
+
+            return {
+                tournamentId: item.tournamentId,
+                tournamentTitle: item.tournamentTitle || (tournamentDetails ? tournamentDetails.title : "Free Fire Tournament"), // Safe backup fallback
+                squadName: item.squadName,
+                paymentId: item.paymentId,
+                status: item.status || 'Pending',
+                joinedAt: item.joinedAt,
+                tournamentInfo: tournamentDetails || { 
+                    title: item.tournamentTitle || "Free Fire Tournament",
+                    roomId: "",
+                    roomPassword: ""
+                }
+            };
+        }));
+
+        res.json(populatedTournaments);
+    } catch (error) {
+        console.error("Backend Error in my-matches:", error);
+        res.status(500).json({ message: "Internal Server Error", error: error.message });
+    }
+});
+
+module.exports = router;
+</file>
+
+<file path="backend/routes/userRoutes.js">
+
+</file>
+
+<file path="backend/seed.js">
+const mongoose = require('mongoose');
+// Check karein ki aapke models folder mein Tournament.js hai ya nahi
+const Tournament = require('./models/Tournament'); 
+
+// Apne MongoDB connection string ko check karein (Local hai toh ye chalega)
+mongoose.connect('mongodb://127.0.0.1:27017/supersEsports')
+  .then(() => console.log("DB Connected for Seeding"))
+  .catch(err => console.log("DB Error:", err));
+
+const seedData = async () => {
+  try {
+    // Purana koi empty data ho toh use saaf karne ke liye
+    await Tournament.deleteMany({}); 
+
+    const sampleTournament = new Tournament({
+      title: "FREE FIRE SQUAD BATTLE",
+      totalSlots: 12,
+      joinedUsers: [] // Abhi slots khali hain
+    });
+     const sampleTournament = new Tournament({
+      title: "CLASH SQUAD",
+      totalSlots: 12,
+      joinedUsers: [] // Abhi slots khali hain
+    });
+ const sampleTournament = new Tournament({
+      title: "FREE FIRE SQUAD BATTLE",
+      totalSlots: 12,
+      joinedUsers: [] // Abhi slots khali hain
+    });
+     const sampleTournament = new Tournament({
+      title: "FREE FIRE SQUAD BATTLE",
+      totalSlots: 12,
+      joinedUsers: [] // Abhi slots khali hain
+    });
+    await sampleTournament.save();
+    console.log("Success: Pehla Tournament Database mein dal gaya hai!");
+    process.exit(); // Script ko band karne ke liye
+  } catch (error) {
+    console.log("Seed Error:", error);
+  }
+};
+
+seedData();
+</file>
+
+<file path="backend/server.js">
+const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+
+const app = express(); // 1. Sabse pehle app banna chahiye
+
+// 2. Middlewares (Inka order yahi rakhna)
+app.use(cors());
+app.use(express.json());
+
+// 3. Routes Import
+const tournamentRoutes = require('./routes/tournamentRoutes');
+const authRoutes = require('./routes/authRoutes');
+
+// 4. Routes Usage
+app.use('/api/auth', authRoutes);
+app.use('/api/tournaments', tournamentRoutes); // Saare tournament related routes ab yahan se chalenge
+
+// MongoDB Connection
+mongoose.connect('mongodb://127.0.0.1:27017/supersEsports')
+  .then(() => console.log("DB Connected!"))
+  .catch(err => console.error("DB Connection Error:", err));
+
+// Server Start
+const PORT = 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+</file>
+
+<file path="package.json">
+{
+  "dependencies": {
+    "@tailwindcss/vite": "^4.2.4",
+    "bcryptjs": "^3.0.3",
+    "jsonwebtoken": "^9.0.3",
+    "react-router-dom": "^7.14.2",
+    "tailwindcss": "^4.2.4"
+  }
+}
+</file>
+
+<file path="SupersEsports/.gitignore">
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+</file>
+
+<file path="SupersEsports/eslint.config.js">
+import js from '@eslint/js'
+import globals from 'globals'
+import reactHooks from 'eslint-plugin-react-hooks'
+import reactRefresh from 'eslint-plugin-react-refresh'
+import { defineConfig, globalIgnores } from 'eslint/config'
+
+export default defineConfig([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{js,jsx}'],
+    extends: [
+      js.configs.recommended,
+      reactHooks.configs.flat.recommended,
+      reactRefresh.configs.vite,
+    ],
+    languageOptions: {
+      ecmaVersion: 2020,
+      globals: globals.browser,
+      parserOptions: {
+        ecmaVersion: 'latest',
+        ecmaFeatures: { jsx: true },
+        sourceType: 'module',
+      },
+    },
+    rules: {
+      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+    },
+  },
+])
+</file>
+
+<file path="SupersEsports/index.html">
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link href="/src/style.css" rel="stylesheet">
+    <title>supersesports</title>
+  </head>
+  <body>
+      <h1 class="text-3xl font-bold underline">
+  </h1>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+
+
+<div id="modal-root"></div>
+  </body>
+</html>
+</file>
+
+<file path="SupersEsports/package.json">
+{
+  "name": "supersesports",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "axios": "^1.16.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-router-dom": "^7.15.0",
+    "react-router-hash-link": "^2.4.3",
+    "sweetalert2": "^11.26.24"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.4.0",
+    "vite": "^8.0.4"
+  }
+}
+</file>
+
+<file path="SupersEsports/public/favicon.svg">
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="46" fill="none" viewBox="0 0 48 46"><path fill="#863bff" d="M25.946 44.938c-.664.845-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.287c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.497 0-3.578-1.842-3.578H1.237c-.92 0-1.456-1.04-.92-1.788L10.013.474c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.579 1.842 3.579h11.377c.943 0 1.473 1.088.89 1.83L25.947 44.94z" style="fill:#863bff;fill:color(display-p3 .5252 .23 1);fill-opacity:1"/><mask id="a" width="48" height="46" x="0" y="0" maskUnits="userSpaceOnUse" style="mask-type:alpha"><path fill="#000" d="M25.842 44.938c-.664.844-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.183c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.498 0-3.579-1.842-3.579H1.133c-.92 0-1.456-1.04-.92-1.787L9.91.473c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.578 1.842 3.578h11.377c.943 0 1.473 1.088.89 1.832L25.843 44.94z" style="fill:#000;fill-opacity:1"/></mask><g mask="url(#a)"><g filter="url(#b)"><ellipse cx="5.508" cy="14.704" fill="#ede6ff" rx="5.508" ry="14.704" style="fill:#ede6ff;fill:color(display-p3 .9275 .9033 1);fill-opacity:1" transform="matrix(.00324 1 1 -.00324 -4.47 31.516)"/></g><g filter="url(#c)"><ellipse cx="10.399" cy="29.851" fill="#ede6ff" rx="10.399" ry="29.851" style="fill:#ede6ff;fill:color(display-p3 .9275 .9033 1);fill-opacity:1" transform="matrix(.00324 1 1 -.00324 -39.328 7.883)"/></g><g filter="url(#d)"><ellipse cx="5.508" cy="30.487" fill="#7e14ff" rx="5.508" ry="30.487" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(89.814 -25.913 -14.639)scale(1 -1)"/></g><g filter="url(#e)"><ellipse cx="5.508" cy="30.599" fill="#7e14ff" rx="5.508" ry="30.599" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(89.814 -32.644 -3.334)scale(1 -1)"/></g><g filter="url(#f)"><ellipse cx="5.508" cy="30.599" fill="#7e14ff" rx="5.508" ry="30.599" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="matrix(.00324 1 1 -.00324 -34.34 30.47)"/></g><g filter="url(#g)"><ellipse cx="14.072" cy="22.078" fill="#ede6ff" rx="14.072" ry="22.078" style="fill:#ede6ff;fill:color(display-p3 .9275 .9033 1);fill-opacity:1" transform="rotate(93.35 24.506 48.493)scale(-1 1)"/></g><g filter="url(#h)"><ellipse cx="3.47" cy="21.501" fill="#7e14ff" rx="3.47" ry="21.501" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(89.009 28.708 47.59)scale(-1 1)"/></g><g filter="url(#i)"><ellipse cx="3.47" cy="21.501" fill="#7e14ff" rx="3.47" ry="21.501" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(89.009 28.708 47.59)scale(-1 1)"/></g><g filter="url(#j)"><ellipse cx=".387" cy="8.972" fill="#7e14ff" rx="4.407" ry="29.108" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(39.51 .387 8.972)"/></g><g filter="url(#k)"><ellipse cx="47.523" cy="-6.092" fill="#7e14ff" rx="4.407" ry="29.108" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(37.892 47.523 -6.092)"/></g><g filter="url(#l)"><ellipse cx="41.412" cy="6.333" fill="#47bfff" rx="5.971" ry="9.665" style="fill:#47bfff;fill:color(display-p3 .2799 .748 1);fill-opacity:1" transform="rotate(37.892 41.412 6.333)"/></g><g filter="url(#m)"><ellipse cx="-1.879" cy="38.332" fill="#7e14ff" rx="4.407" ry="29.108" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(37.892 -1.88 38.332)"/></g><g filter="url(#n)"><ellipse cx="-1.879" cy="38.332" fill="#7e14ff" rx="4.407" ry="29.108" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(37.892 -1.88 38.332)"/></g><g filter="url(#o)"><ellipse cx="35.651" cy="29.907" fill="#7e14ff" rx="4.407" ry="29.108" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(37.892 35.651 29.907)"/></g><g filter="url(#p)"><ellipse cx="38.418" cy="32.4" fill="#47bfff" rx="5.971" ry="15.297" style="fill:#47bfff;fill:color(display-p3 .2799 .748 1);fill-opacity:1" transform="rotate(37.892 38.418 32.4)"/></g></g><defs><filter id="b" width="60.045" height="41.654" x="-19.77" y="16.149" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="7.659"/></filter><filter id="c" width="90.34" height="51.437" x="-54.613" y="-7.533" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="7.659"/></filter><filter id="d" width="79.355" height="29.4" x="-49.64" y="2.03" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="e" width="79.579" height="29.4" x="-45.045" y="20.029" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="f" width="79.579" height="29.4" x="-43.513" y="21.178" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="g" width="74.749" height="58.852" x="15.756" y="-17.901" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="7.659"/></filter><filter id="h" width="61.377" height="25.362" x="23.548" y="2.284" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="i" width="61.377" height="25.362" x="23.548" y="2.284" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="j" width="56.045" height="63.649" x="-27.636" y="-22.853" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="k" width="54.814" height="64.646" x="20.116" y="-38.415" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="l" width="33.541" height="35.313" x="24.641" y="-11.323" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="m" width="54.814" height="64.646" x="-29.286" y="6.009" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="n" width="54.814" height="64.646" x="-29.286" y="6.009" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="o" width="54.814" height="64.646" x="8.244" y="-2.416" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="p" width="39.409" height="43.623" x="18.713" y="10.588" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter></defs></svg>
+</file>
+
+<file path="SupersEsports/public/icons.svg">
+<svg xmlns="http://www.w3.org/2000/svg">
+  <symbol id="bluesky-icon" viewBox="0 0 16 17">
+    <g clip-path="url(#bluesky-clip)"><path fill="#08060d" d="M7.75 7.735c-.693-1.348-2.58-3.86-4.334-5.097-1.68-1.187-2.32-.981-2.74-.79C.188 2.065.1 2.812.1 3.251s.241 3.602.398 4.13c.52 1.744 2.367 2.333 4.07 2.145-2.495.37-4.71 1.278-1.805 4.512 3.196 3.309 4.38-.71 4.987-2.746.608 2.036 1.307 5.91 4.93 2.746 2.72-2.746.747-4.143-1.747-4.512 1.702.189 3.55-.4 4.07-2.145.156-.528.397-3.691.397-4.13s-.088-1.186-.575-1.406c-.42-.19-1.06-.395-2.741.79-1.755 1.24-3.64 3.752-4.334 5.099"/></g>
+    <defs><clipPath id="bluesky-clip"><path fill="#fff" d="M.1.85h15.3v15.3H.1z"/></clipPath></defs>
+  </symbol>
+  <symbol id="discord-icon" viewBox="0 0 20 19">
+    <path fill="#08060d" d="M16.224 3.768a14.5 14.5 0 0 0-3.67-1.153c-.158.286-.343.67-.47.976a13.5 13.5 0 0 0-4.067 0c-.128-.306-.317-.69-.476-.976A14.4 14.4 0 0 0 3.868 3.77C1.546 7.28.916 10.703 1.231 14.077a14.7 14.7 0 0 0 4.5 2.306q.545-.748.965-1.587a9.5 9.5 0 0 1-1.518-.74q.191-.14.372-.293c2.927 1.369 6.107 1.369 8.999 0q.183.152.372.294-.723.437-1.52.74.418.838.963 1.588a14.6 14.6 0 0 0 4.504-2.308c.37-3.911-.63-7.302-2.644-10.309m-9.13 8.234c-.878 0-1.599-.82-1.599-1.82 0-.998.705-1.82 1.6-1.82.894 0 1.614.82 1.599 1.82.001 1-.705 1.82-1.6 1.82m5.91 0c-.878 0-1.599-.82-1.599-1.82 0-.998.705-1.82 1.6-1.82.893 0 1.614.82 1.599 1.82 0 1-.706 1.82-1.6 1.82"/>
+  </symbol>
+  <symbol id="documentation-icon" viewBox="0 0 21 20">
+    <path fill="none" stroke="#aa3bff" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.35" d="m15.5 13.333 1.533 1.322c.645.555.967.833.967 1.178s-.322.623-.967 1.179L15.5 18.333m-3.333-5-1.534 1.322c-.644.555-.966.833-.966 1.178s.322.623.966 1.179l1.534 1.321"/>
+    <path fill="none" stroke="#aa3bff" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.35" d="M17.167 10.836v-4.32c0-1.41 0-2.117-.224-2.68-.359-.906-1.118-1.621-2.08-1.96-.599-.21-1.349-.21-2.848-.21-2.623 0-3.935 0-4.983.369-1.684.591-3.013 1.842-3.641 3.428C3 6.449 3 7.684 3 10.154v2.122c0 2.558 0 3.838.706 4.726q.306.383.713.671c.76.536 1.79.64 3.581.66"/>
+    <path fill="none" stroke="#aa3bff" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.35" d="M3 10a2.78 2.78 0 0 1 2.778-2.778c.555 0 1.209.097 1.748-.047.48-.129.854-.503.982-.982.145-.54.048-1.194.048-1.749a2.78 2.78 0 0 1 2.777-2.777"/>
+  </symbol>
+  <symbol id="github-icon" viewBox="0 0 19 19">
+    <path fill="#08060d" fill-rule="evenodd" d="M9.356 1.85C5.05 1.85 1.57 5.356 1.57 9.694a7.84 7.84 0 0 0 5.324 7.44c.387.079.528-.168.528-.376 0-.182-.013-.805-.013-1.454-2.165.467-2.616-.935-2.616-.935-.349-.91-.864-1.143-.864-1.143-.71-.48.051-.48.051-.48.787.051 1.2.805 1.2.805.695 1.194 1.817.857 2.268.649.064-.507.27-.857.49-1.052-1.728-.182-3.545-.857-3.545-3.87 0-.857.31-1.558.8-2.104-.078-.195-.349-1 .077-2.078 0 0 .657-.208 2.14.805a7.5 7.5 0 0 1 1.946-.26c.657 0 1.328.092 1.946.26 1.483-1.013 2.14-.805 2.14-.805.426 1.078.155 1.883.078 2.078.502.546.799 1.247.799 2.104 0 3.013-1.818 3.675-3.558 3.87.284.247.528.714.528 1.454 0 1.052-.012 1.896-.012 2.156 0 .208.142.455.528.377a7.84 7.84 0 0 0 5.324-7.441c.013-4.338-3.48-7.844-7.773-7.844" clip-rule="evenodd"/>
+  </symbol>
+  <symbol id="social-icon" viewBox="0 0 20 20">
+    <path fill="none" stroke="#aa3bff" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.35" d="M12.5 6.667a4.167 4.167 0 1 0-8.334 0 4.167 4.167 0 0 0 8.334 0"/>
+    <path fill="none" stroke="#aa3bff" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.35" d="M2.5 16.667a5.833 5.833 0 0 1 8.75-5.053m3.837.474.513 1.035c.07.144.257.282.414.309l.93.155c.596.1.736.536.307.965l-.723.73a.64.64 0 0 0-.152.531l.207.903c.164.715-.213.991-.84.618l-.872-.52a.63.63 0 0 0-.577 0l-.872.52c-.624.373-1.003.094-.84-.618l.207-.903a.64.64 0 0 0-.152-.532l-.723-.729c-.426-.43-.289-.864.306-.964l.93-.156a.64.64 0 0 0 .412-.31l.513-1.034c.28-.562.735-.562 1.012 0"/>
+  </symbol>
+  <symbol id="x-icon" viewBox="0 0 19 19">
+    <path fill="#08060d" fill-rule="evenodd" d="M1.893 1.98c.052.072 1.245 1.769 2.653 3.77l2.892 4.114c.183.261.333.48.333.486s-.068.089-.152.183l-.522.593-.765.867-3.597 4.087c-.375.426-.734.834-.798.905a1 1 0 0 0-.118.148c0 .01.236.017.664.017h.663l.729-.83c.4-.457.796-.906.879-.999a692 692 0 0 0 1.794-2.038c.034-.037.301-.34.594-.675l.551-.624.345-.392a7 7 0 0 1 .34-.374c.006 0 .93 1.306 2.052 2.903l2.084 2.965.045.063h2.275c1.87 0 2.273-.003 2.266-.021-.008-.02-1.098-1.572-3.894-5.547-2.013-2.862-2.28-3.246-2.273-3.266.008-.019.282-.332 2.085-2.38l2-2.274 1.567-1.782c.022-.028-.016-.03-.65-.03h-.674l-.3.342a871 871 0 0 1-1.782 2.025c-.067.075-.405.458-.75.852a100 100 0 0 1-.803.91c-.148.172-.299.344-.99 1.127-.304.343-.32.358-.345.327-.015-.019-.904-1.282-1.976-2.808L6.365 1.85H1.8zm1.782.91 8.078 11.294c.772 1.08 1.413 1.973 1.425 1.984.016.017.241.02 1.05.017l1.03-.004-2.694-3.766L7.796 5.75 5.722 2.852l-1.039-.004-1.039-.004z" clip-rule="evenodd"/>
+  </symbol>
+</svg>
+</file>
+
+<file path="SupersEsports/README.md">
+# React + Vite
+
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+
+Currently, two official plugins are available:
+
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+
+## React Compiler
+
+The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+
+## Expanding the ESLint configuration
+
+If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+</file>
+
+<file path="SupersEsports/src/App.css">
+.counter {
+  font-size: 16px;
+  padding: 5px 10px;
+  border-radius: 5px;
+  color: var(--accent);
+  background: var(--accent-bg);
+  border: 2px solid transparent;
+  transition: border-color 0.3s;
+  margin-bottom: 24px;
+
+  &:hover {
+    border-color: var(--accent-border);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+.hero {
+  position: relative;
+
+  .base,
+  .framework,
+  .vite {
+    inset-inline: 0;
+    margin: 0 auto;
+  }
+
+  .base {
+    width: 170px;
+    position: relative;
+    z-index: 0;
+  }
+
+  .framework,
+  .vite {
+    position: absolute;
+  }
+
+  .framework {
+    z-index: 1;
+    top: 34px;
+    height: 28px;
+    transform: perspective(2000px) rotateZ(300deg) rotateX(44deg) rotateY(39deg)
+      scale(1.4);
+  }
+
+  .vite {
+    z-index: 0;
+    top: 107px;
+    height: 26px;
+    width: auto;
+    transform: perspective(2000px) rotateZ(300deg) rotateX(40deg) rotateY(39deg)
+      scale(0.8);
+  }
+}
+
+#center {
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+  place-content: center;
+  place-items: center;
+  flex-grow: 1;
+
+  @media (max-width: 1024px) {
+    padding: 32px 20px 24px;
+    gap: 18px;
+  }
+}
+
+#next-steps {
+  display: flex;
+  border-top: 1px solid var(--border);
+  text-align: left;
+
+  & > div {
+    flex: 1 1 0;
+    padding: 32px;
+    @media (max-width: 1024px) {
+      padding: 24px 20px;
+    }
+  }
+
+  .icon {
+    margin-bottom: 16px;
+    width: 22px;
+    height: 22px;
+  }
+
+  @media (max-width: 1024px) {
+    flex-direction: column;
+    text-align: center;
+  }
+}
+
+#docs {
+  border-right: 1px solid var(--border);
+
+  @media (max-width: 1024px) {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+}
+
+#next-steps ul {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  gap: 8px;
+  margin: 32px 0 0;
+
+  .logo {
+    height: 18px;
+  }
+
+  a {
+    color: var(--text-h);
+    font-size: 16px;
+    border-radius: 6px;
+    background: var(--social-bg);
+    display: flex;
+    padding: 6px 12px;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+    transition: box-shadow 0.3s;
+
+    &:hover {
+      box-shadow: var(--shadow);
+    }
+    .button-icon {
+      height: 18px;
+      width: 18px;
+    }
+  }
+
+  @media (max-width: 1024px) {
+    margin-top: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+
+    li {
+      flex: 1 1 calc(50% - 8px);
+    }
+
+    a {
+      width: 100%;
+      justify-content: center;
+      box-sizing: border-box;
+    }
+  }
+}
+
+#spacer {
+  height: 88px;
+  border-top: 1px solid var(--border);
+  @media (max-width: 1024px) {
+    height: 48px;
+  }
+}
+
+.ticks {
+  position: relative;
+  width: 100%;
+
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    top: -4.5px;
+    border: 5px solid transparent;
+  }
+
+  &::before {
+    left: 0;
+    border-left-color: var(--border);
+  }
+  &::after {
+    right: 0;
+    border-right-color: var(--border);
+  }
+}
+</file>
+
+<file path="SupersEsports/src/App.jsx">
+import React, { useState, useEffect } from "react";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+
+// Components Import
+import Navbar from "./components/Navbar";
+import Intro from "./components/Intro";
+import TournamentSection from "./components/TournamentSection";
+import UpcomingCategories from "./components/UpcomingCategories";
+import Leaderboard from "./components/Leaderboard";
+import Community from "./components/Community";
+import Footer from "./components/Footer";
+import JoinPage from "./components/JoinPage";
+import LoginModal from "./components/LoginModal";
+
+// Naye Components aur Pages
+import ProfilePage from "./pages/ProfilePage"; 
+import ProtectedRoute from "./components/ProtectedRoute"; 
+
+function App() {
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [user, setUser] = useState(null);
+
+  // --- REFRESH FIX LOGIC ---
+  useEffect(() => {
+    const savedUser = localStorage.getItem("user");
+    const token = localStorage.getItem("token");
+
+    if (savedUser && token) {
+      setUser(JSON.parse(savedUser));
+    }
+  }, []);
+
+  const handleOpenLogin = () => setIsLoginModalOpen(true);
+  const handleCloseLogin = () => setIsLoginModalOpen(false);
+
+  const handleLoginSuccess = (userData) => {
+    setUser(userData);
+    setIsLoginModalOpen(false);
+    console.log("User Logged In:", userData.name);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    setUser(null);
+    window.location.href = "/";
+  };
+
+  return (
+    <Router>
+      <div className="w-full bg-white text-zinc-950 font-sans selection:bg-blue-500 selection:text-white overflow-x-hidden">
+        
+        <Navbar 
+          onOpenLogin={handleOpenLogin} 
+          user={user} 
+          onLogout={handleLogout} 
+        />
+
+        <Routes>
+          <Route 
+            path="/" 
+            element={
+              <main className="w-full block">
+                
+                {/* Intro Content block */}
+                <Intro />
+                
+                {/* Tournament Section block */}
+                <TournamentSection onOpenLogin={handleOpenLogin} />
+                
+                <Leaderboard />
+                
+                <UpcomingCategories />
+                
+                <Community />
+                
+              </main>
+            } 
+          />
+
+          <Route path="/join/:id" element={<JoinPage />} />
+
+          <Route 
+            path="/profile" 
+            element={
+              <ProtectedRoute>
+                <ProfilePage user={user} />
+              </ProtectedRoute>
+            } 
+          />
+        </Routes>
+
+        <Footer />
+
+        <LoginModal 
+          isOpen={isLoginModalOpen} 
+          onClose={handleCloseLogin} 
+          onLoginSuccess={handleLoginSuccess} 
+        />
+
+      </div>
+    </Router>
+  );
+}
+
+export default App;
+</file>
+
+<file path="SupersEsports/src/assets/react.svg">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="iconify iconify--logos" width="35.93" height="32" preserveAspectRatio="xMidYMid meet" viewBox="0 0 256 228"><path fill="#00D8FF" d="M210.483 73.824a171.49 171.49 0 0 0-8.24-2.597c.465-1.9.893-3.777 1.273-5.621c6.238-30.281 2.16-54.676-11.769-62.708c-13.355-7.7-35.196.329-57.254 19.526a171.23 171.23 0 0 0-6.375 5.848a155.866 155.866 0 0 0-4.241-3.917C100.759 3.829 77.587-4.822 63.673 3.233C50.33 10.957 46.379 33.89 51.995 62.588a170.974 170.974 0 0 0 1.892 8.48c-3.28.932-6.445 1.924-9.474 2.98C17.309 83.498 0 98.307 0 113.668c0 15.865 18.582 31.778 46.812 41.427a145.52 145.52 0 0 0 6.921 2.165a167.467 167.467 0 0 0-2.01 9.138c-5.354 28.2-1.173 50.591 12.134 58.266c13.744 7.926 36.812-.22 59.273-19.855a145.567 145.567 0 0 0 5.342-4.923a168.064 168.064 0 0 0 6.92 6.314c21.758 18.722 43.246 26.282 56.54 18.586c13.731-7.949 18.194-32.003 12.4-61.268a145.016 145.016 0 0 0-1.535-6.842c1.62-.48 3.21-.974 4.76-1.488c29.348-9.723 48.443-25.443 48.443-41.52c0-15.417-17.868-30.326-45.517-39.844Zm-6.365 70.984c-1.4.463-2.836.91-4.3 1.345c-3.24-10.257-7.612-21.163-12.963-32.432c5.106-11 9.31-21.767 12.459-31.957c2.619.758 5.16 1.557 7.61 2.4c23.69 8.156 38.14 20.213 38.14 29.504c0 9.896-15.606 22.743-40.946 31.14Zm-10.514 20.834c2.562 12.94 2.927 24.64 1.23 33.787c-1.524 8.219-4.59 13.698-8.382 15.893c-8.067 4.67-25.32-1.4-43.927-17.412a156.726 156.726 0 0 1-6.437-5.87c7.214-7.889 14.423-17.06 21.459-27.246c12.376-1.098 24.068-2.894 34.671-5.345a134.17 134.17 0 0 1 1.386 6.193ZM87.276 214.515c-7.882 2.783-14.16 2.863-17.955.675c-8.075-4.657-11.432-22.636-6.853-46.752a156.923 156.923 0 0 1 1.869-8.499c10.486 2.32 22.093 3.988 34.498 4.994c7.084 9.967 14.501 19.128 21.976 27.15a134.668 134.668 0 0 1-4.877 4.492c-9.933 8.682-19.886 14.842-28.658 17.94ZM50.35 144.747c-12.483-4.267-22.792-9.812-29.858-15.863c-6.35-5.437-9.555-10.836-9.555-15.216c0-9.322 13.897-21.212 37.076-29.293c2.813-.98 5.757-1.905 8.812-2.773c3.204 10.42 7.406 21.315 12.477 32.332c-5.137 11.18-9.399 22.249-12.634 32.792a134.718 134.718 0 0 1-6.318-1.979Zm12.378-84.26c-4.811-24.587-1.616-43.134 6.425-47.789c8.564-4.958 27.502 2.111 47.463 19.835a144.318 144.318 0 0 1 3.841 3.545c-7.438 7.987-14.787 17.08-21.808 26.988c-12.04 1.116-23.565 2.908-34.161 5.309a160.342 160.342 0 0 1-1.76-7.887Zm110.427 27.268a347.8 347.8 0 0 0-7.785-12.803c8.168 1.033 15.994 2.404 23.343 4.08c-2.206 7.072-4.956 14.465-8.193 22.045a381.151 381.151 0 0 0-7.365-13.322Zm-45.032-43.861c5.044 5.465 10.096 11.566 15.065 18.186a322.04 322.04 0 0 0-30.257-.006c4.974-6.559 10.069-12.652 15.192-18.18ZM82.802 87.83a323.167 323.167 0 0 0-7.227 13.238c-3.184-7.553-5.909-14.98-8.134-22.152c7.304-1.634 15.093-2.97 23.209-3.984a321.524 321.524 0 0 0-7.848 12.897Zm8.081 65.352c-8.385-.936-16.291-2.203-23.593-3.793c2.26-7.3 5.045-14.885 8.298-22.6a321.187 321.187 0 0 0 7.257 13.246c2.594 4.48 5.28 8.868 8.038 13.147Zm37.542 31.03c-5.184-5.592-10.354-11.779-15.403-18.433c4.902.192 9.899.29 14.978.29c5.218 0 10.376-.117 15.453-.343c-4.985 6.774-10.018 12.97-15.028 18.486Zm52.198-57.817c3.422 7.8 6.306 15.345 8.596 22.52c-7.422 1.694-15.436 3.058-23.88 4.071a382.417 382.417 0 0 0 7.859-13.026a347.403 347.403 0 0 0 7.425-13.565Zm-16.898 8.101a358.557 358.557 0 0 1-12.281 19.815a329.4 329.4 0 0 1-23.444.823c-7.967 0-15.716-.248-23.178-.732a310.202 310.202 0 0 1-12.513-19.846h.001a307.41 307.41 0 0 1-10.923-20.627a310.278 310.278 0 0 1 10.89-20.637l-.001.001a307.318 307.318 0 0 1 12.413-19.761c7.613-.576 15.42-.876 23.31-.876H128c7.926 0 15.743.303 23.354.883a329.357 329.357 0 0 1 12.335 19.695a358.489 358.489 0 0 1 11.036 20.54a329.472 329.472 0 0 1-11 20.722Zm22.56-122.124c8.572 4.944 11.906 24.881 6.52 51.026c-.344 1.668-.73 3.367-1.15 5.09c-10.622-2.452-22.155-4.275-34.23-5.408c-7.034-10.017-14.323-19.124-21.64-27.008a160.789 160.789 0 0 1 5.888-5.4c18.9-16.447 36.564-22.941 44.612-18.3ZM128 90.808c12.625 0 22.86 10.235 22.86 22.86s-10.235 22.86-22.86 22.86s-22.86-10.235-22.86-22.86s10.235-22.86 22.86-22.86Z"></path></svg>
+</file>
+
+<file path="SupersEsports/src/assets/vite.svg">
+<svg xmlns="http://www.w3.org/2000/svg" width="77" height="47" fill="none" aria-labelledby="vite-logo-title" viewBox="0 0 77 47"><title id="vite-logo-title">Vite</title><style>.parenthesis{fill:#000}@media (prefers-color-scheme:dark){.parenthesis{fill:#fff}}</style><path fill="#9135ff" d="M40.151 45.71c-.663.844-2.02.374-2.02-.699V34.708a2.26 2.26 0 0 0-2.262-2.262H24.493c-.92 0-1.457-1.04-.92-1.788l7.479-10.471c1.07-1.498 0-3.578-1.842-3.578H15.443c-.92 0-1.456-1.04-.92-1.788l9.696-13.576c.213-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.472c-1.07 1.497 0 3.578 1.842 3.578h11.376c.944 0 1.474 1.087.89 1.83L40.153 45.712z"/><mask id="a" width="48" height="47" x="14" y="0" maskUnits="userSpaceOnUse" style="mask-type:alpha"><path fill="#000" d="M40.047 45.71c-.663.843-2.02.374-2.02-.699V34.708a2.26 2.26 0 0 0-2.262-2.262H24.389c-.92 0-1.457-1.04-.92-1.788l7.479-10.472c1.07-1.497 0-3.578-1.842-3.578H15.34c-.92 0-1.456-1.04-.92-1.788l9.696-13.575c.213-.297.556-.474.92-.474H53.93c.92 0 1.456 1.04.92 1.788L47.37 13.03c-1.07 1.498 0 3.578 1.842 3.578h11.376c.944 0 1.474 1.088.89 1.831L40.049 45.712z"/></mask><g mask="url(#a)"><g filter="url(#b)"><ellipse cx="5.508" cy="14.704" fill="#eee6ff" rx="5.508" ry="14.704" transform="rotate(269.814 20.96 11.29)scale(-1 1)"/></g><g filter="url(#c)"><ellipse cx="10.399" cy="29.851" fill="#eee6ff" rx="10.399" ry="29.851" transform="rotate(89.814 -16.902 -8.275)scale(1 -1)"/></g><g filter="url(#d)"><ellipse cx="5.508" cy="30.487" fill="#8900ff" rx="5.508" ry="30.487" transform="rotate(89.814 -19.197 -7.127)scale(1 -1)"/></g><g filter="url(#e)"><ellipse cx="5.508" cy="30.599" fill="#8900ff" rx="5.508" ry="30.599" transform="rotate(89.814 -25.928 4.177)scale(1 -1)"/></g><g filter="url(#f)"><ellipse cx="5.508" cy="30.599" fill="#8900ff" rx="5.508" ry="30.599" transform="rotate(89.814 -25.738 5.52)scale(1 -1)"/></g><g filter="url(#g)"><ellipse cx="14.072" cy="22.078" fill="#eee6ff" rx="14.072" ry="22.078" transform="rotate(93.35 31.245 55.578)scale(-1 1)"/></g><g filter="url(#h)"><ellipse cx="3.47" cy="21.501" fill="#8900ff" rx="3.47" ry="21.501" transform="rotate(89.009 35.419 55.202)scale(-1 1)"/></g><g filter="url(#i)"><ellipse cx="3.47" cy="21.501" fill="#8900ff" rx="3.47" ry="21.501" transform="rotate(89.009 35.419 55.202)scale(-1 1)"/></g><g filter="url(#j)"><ellipse cx="14.592" cy="9.743" fill="#8900ff" rx="4.407" ry="29.108" transform="rotate(39.51 14.592 9.743)"/></g><g filter="url(#k)"><ellipse cx="61.728" cy="-5.321" fill="#8900ff" rx="4.407" ry="29.108" transform="rotate(37.892 61.728 -5.32)"/></g><g filter="url(#l)"><ellipse cx="55.618" cy="7.104" fill="#00c2ff" rx="5.971" ry="9.665" transform="rotate(37.892 55.618 7.104)"/></g><g filter="url(#m)"><ellipse cx="12.326" cy="39.103" fill="#8900ff" rx="4.407" ry="29.108" transform="rotate(37.892 12.326 39.103)"/></g><g filter="url(#n)"><ellipse cx="12.326" cy="39.103" fill="#8900ff" rx="4.407" ry="29.108" transform="rotate(37.892 12.326 39.103)"/></g><g filter="url(#o)"><ellipse cx="49.857" cy="30.678" fill="#8900ff" rx="4.407" ry="29.108" transform="rotate(37.892 49.857 30.678)"/></g><g filter="url(#p)"><ellipse cx="52.623" cy="33.171" fill="#00c2ff" rx="5.971" ry="15.297" transform="rotate(37.892 52.623 33.17)"/></g></g><path d="M6.919 0c-9.198 13.166-9.252 33.575 0 46.789h6.215c-9.25-13.214-9.196-33.623 0-46.789zm62.424 0h-6.215c9.198 13.166 9.252 33.575 0 46.789h6.215c9.25-13.214 9.196-33.623 0-46.789" class="parenthesis"/><defs><filter id="b" width="60.045" height="41.654" x="-5.564" y="16.92" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="7.659"/></filter><filter id="c" width="90.34" height="51.437" x="-40.407" y="-6.762" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="7.659"/></filter><filter id="d" width="79.355" height="29.4" x="-35.435" y="2.801" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="4.596"/></filter><filter id="e" width="79.579" height="29.4" x="-30.84" y="20.8" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="4.596"/></filter><filter id="f" width="79.579" height="29.4" x="-29.307" y="21.949" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="4.596"/></filter><filter id="g" width="74.749" height="58.852" x="29.961" y="-17.13" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="7.659"/></filter><filter id="h" width="61.377" height="25.362" x="37.754" y="3.055" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="4.596"/></filter><filter id="i" width="61.377" height="25.362" x="37.754" y="3.055" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="4.596"/></filter><filter id="j" width="56.045" height="63.649" x="-13.43" y="-22.082" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="4.596"/></filter><filter id="k" width="54.814" height="64.646" x="34.321" y="-37.644" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="4.596"/></filter><filter id="l" width="33.541" height="35.313" x="38.847" y="-10.552" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="4.596"/></filter><filter id="m" width="54.814" height="64.646" x="-15.081" y="6.78" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="4.596"/></filter><filter id="n" width="54.814" height="64.646" x="-15.081" y="6.78" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="4.596"/></filter><filter id="o" width="54.814" height="64.646" x="22.45" y="-1.645" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="4.596"/></filter><filter id="p" width="39.409" height="43.623" x="32.919" y="11.36" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="4.596"/></filter></defs></svg>
+</file>
+
+<file path="SupersEsports/src/components/Community.jsx">
+import React from 'react';
+
+function Community() {
+  const socialLinks = [
+    {
+      name: "YouTube",
+      icon: "https://cdn-icons-png.flaticon.com/512/1384/1384060.png",
+      link: "https://youtube.com/@rohitxthakurr",
+      color: "hover:bg-[#FF0000]",
+      desc: "Watch live tournaments and highlights every day."
+    },
+    {
+      name: "WhatsApp",
+      icon: "https://cdn-icons-png.flaticon.com/512/3670/3670051.png",
+      link: "https://whatsapp.com/channel/0029VbBYTHiGzzKL3FOueE47",
+      color: "hover:bg-[#25D366]",
+      desc: "Get instant notifications for new tournaments."
+    },
+    {
+      name: "Discord",
+      icon: "https://cdn-icons-png.flaticon.com/512/3670/3670157.png",
+      link: "https://discord.gg/YOUR_LINK",
+      color: "hover:bg-[#5865F2]",
+      desc: "Join our server for match updates & support."
+    },
+    {
+      name: "Instagram",
+      icon: "https://cdn-icons-png.flaticon.com/512/3955/3955024.png",
+      link: "https://www.instagram.com/rohitxthakurr?igsh=azV0bG5mMTFlMXY%3D&utm_source=qr",
+      color: "hover:bg-[#E1306C]",
+      desc: "Follow us for highlights and winner announcements."
+    }
+  ];
+
+  return (
+    <section id="community" className="py-24 text-white">
+      <div className="max-w-4xl mx-auto px-6"> {/* Max-width thoda kam kiya 2x2 ke liye */}
+        <div className="text-center mb-16">
+          <h2 className="text-5xl font-black italic uppercase text-purple-500  tracking-tighter mb-4">
+            Join the <span className="text-blue-500">Community</span>
+          </h2>
+          <p className="text-zinc-500 font-bold uppercase tracking-widest text-sm">
+            Be part of the fastest growing e-sports community
+          </p>
+        </div>
+
+        {/* 2x2 Grid Logic: md:grid-cols-2 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {socialLinks.map((social, index) => (
+            <a 
+              key={index}
+              href={social.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`bg-zinc-900/50 border border-white/5 p-8 rounded-4xl transition-all duration-300 group ${social.color} hover:-translate-y-2 flex flex-col items-center text-center`}
+            >
+              <div className="bg-black w-14 h-14 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-white/10 transition-colors shadow-xl">
+                <img src={social.icon} alt={social.name} className="w-7 h-7 object-contain grayscale group-hover:grayscale-0 transition-all" />
+              </div>
+              <h3 className="text-xl font-black mb-2 uppercase italic">{social.name}</h3>
+              <p className="text-black italic  text-20px group-hover:text-white/80 transition-colors leading-relaxed">
+                {social.desc}
+              </p>
+            </a>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export default Community;
+</file>
+
+<file path="SupersEsports/src/components/Footer.jsx">
+import React from 'react';
+import { HashLink } from 'react-router-hash-link';
+
+function Footer() {
+  return (
+   <footer id="footer" className="bg-zinc-950 border-t border-white/5 pt-16 pb-8 text-white">
+      <div className="max-w-6xl mx-auto px-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-12 mb-16">
+          
+          {/* Brand & Disclaimer Column */}
+          <div className="space-y-4">
+            <h2 className="text-2xl font-black italic uppercase tracking-tighter">
+              <span className="text-blue-500">Supers</span> Esports
+            </h2>
+            <p className="text-zinc-500 text-xs font-bold leading-relaxed uppercase tracking-wider">
+              The ultimate destination for competitive mobile gaming. Join, compete, and conquer.
+            </p>
+            {/* LEGAL DISCLAIMER - Very Important */}
+            <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
+              <p className="text-[9px] text-zinc-500 font-bold leading-tight uppercase italic">
+                Disclaimer: Supers Esports is an independent platform and is NOT affiliated with, authorized, or endorsed by Garena or Free Fire. All game assets and logos belong to their respective owners.
+              </p>
+            </div>
+          </div>
+
+          {/* Quick Links Column */}
+          <div className="flex flex-col space-y-4 md:items-center">
+            <h3 className="text-sm font-black uppercase italic tracking-widest text-zinc-400">Navigation</h3>
+            <ul className="space-y-3 text-xs font-black uppercase tracking-widest">
+              <li><HashLink smooth to="/#" className="hover:text-blue-500 transition-colors">Home</HashLink></li>
+              <li><HashLink smooth to="/#tournaments" className="hover:text-blue-500 transition-colors">Tournaments</HashLink></li>
+              <li><HashLink smooth to="/#leaderboard" className="hover:text-blue-500 transition-colors">Leaderboard</HashLink></li>
+              <li><HashLink smooth to="/#community" className="hover:text-blue-500 transition-colors">Join Us</HashLink></li>
+            </ul>
+          </div>
+
+          {/* Contact & Social Column */}
+          <div className="space-y-6 md:text-right">
+            <h3 className="text-sm font-black uppercase italic tracking-widest text-zinc-400">Support</h3>
+            <div className="space-y-2">
+              <p className="text-xs font-black uppercase tracking-widest">Email: support@supersesports.com</p>
+              <p className="text-xs font-black uppercase tracking-widest text-blue-500">Contact via WhatsApp for faster help</p>
+            </div>
+            {/* Minimal Social Icons */}
+            <div className="flex gap-4 md:justify-end">
+              {/* YouTube Link */}
+              <a 
+                href="https://youtube.com/@rohitxthakurr" // <-- Yahan apna YT channel ka link daalo
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center hover:bg-red-600 hover:scale-105 transition-all"
+              >
+                 <img src="https://cdn-icons-png.flaticon.com/512/1384/1384060.png" className="w-5 h-5 invert" alt="YT" />
+              </a>
+
+              {/* WhatsApp Link */}
+              <a 
+                href="https://whatsapp.com/channel/0029VbBYTHiGzzKL3FOueE47" // <-- Yahan Apna 10-digit number daalo (Country code '91' ke sath, bina space/plus ke)
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center hover:bg-green-500 hover:scale-105 transition-all"
+              >
+                 <img src="https://cdn-icons-png.flaticon.com/512/3670/3670051.png" className="w-5 h-5 invert" alt="WA" />
+              </a>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom Bar */}
+        <div className="pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-4">
+          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-600">
+            © 2026 SUPERS ESPORTS • DEVELOPED BY <span className="text-zinc-400">ROHIT</span>
+          </p>
+          <div className="flex gap-6 text-[9px] font-black uppercase tracking-widest text-zinc-600">
+            <a href="#" className="hover:text-white transition-colors">Terms of service</a>
+            <a href="#" className="hover:text-white transition-colors">Privacy Policy</a>
+          </div>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+export default Footer;
+</file>
+
+<file path="SupersEsports/src/components/Intro.jsx">
+import React, { useState, useEffect } from 'react';
+import { HashLink } from 'react-router-hash-link';
+
+function Intro() {
+  const cards = [
+    { id: 1, title: "UPCOMING TOURNAMENTS", info: "Join now and win Prizes", color: "bg-blue-600", link: "/#tournaments" },
+    { id: 2, title: "TOP PLAYERS", info: "Check out the leaderboard", color: "bg-purple-600", link: "/#leaderboard" },
+    { id: 3, title: "JOIN COMMUNITY", info: "Join Us On Other Platforms", color: "bg-indigo-600", link: "/#community" },
+    { 
+      id: 4, 
+      title: "WATCH LIVE", 
+      info: "Watch live games on our YOUTUBE CHANNEL", 
+      color: "bg-red-500", 
+      link: "https://youtube.com/@rohitxthakurr", 
+      isExternal: true 
+    },
+    { id: 5, title: "FAST PAYOUTS", info: "Get your winning amount within 24 hours directly to UPI.", color: "bg-green-500", link: "/#footer" },
+  ];
+
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentIndex((prevIndex) => (prevIndex + 1) % cards.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [cards.length]);
+
+  return (
+    // FIX 1: 'min-h-screen' aur 'justify-between' ko bilkul saaf kar diya. 
+    // Padding ko 'pt-28 md:pt-32 pb-6' kiya taaki navbar ke niche space tight rahe aur bottom me gap na bane.
+    <section 
+      id="home" 
+      className="w-full bg-white px-4 sm:px-6 md:px-12 pt-28 md:pt-32 pb-6 block text-zinc-950"
+    >
+      {/* Main Framework Content */}
+      {/* FIX 2: 'my-auto' hata diya taaki flexbox vertical spacing inject na kare */}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-8 md:gap-10 pb-6 lg:gap-16 items-center max-w-7xl w-full mx-auto">
+        
+        {/* LEFT SIDE: Content + Supported Game Modes */}
+        <div className="text-center md:text-left flex flex-col justify-center md:col-span-6">
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black leading-none uppercase italic text-zinc-950 tracking-tighter">
+            Let's Fight For <br />
+            <span className="bg-linear-to-r from-blue-600 to-purple-500 bg-clip-text text-transparent italic">
+              Booyah!
+            </span>{" "}
+            Together
+          </h1>
+          
+          <p className="text-zinc-500 font-black mt-4 max-w-md mx-auto md:mx-0 uppercase tracking-[0.2em] text-xs sm:text-sm leading-relaxed border-l-4 border-blue-600 pl-4">
+            Supers Esports — Built to Dominate — Join Now, Win More.
+          </p>
+
+          {/* Game Format Tags */}
+          <div className="mt-4 flex flex-wrap justify-center md:justify-start gap-2">
+            {["Solo", "Duo", "Squad", "Classic BR", "Clash Squad"].map((mode) => (
+              <span key={mode} className="text-[10px] font-black uppercase tracking-wider bg-zinc-100 text-zinc-800 px-3 py-1 rounded-md border border-zinc-200/60">
+                ⚡ {mode}
+              </span>
+            ))}
+          </div>
+          
+          <div className="mt-6 flex flex-col sm:flex-row justify-center md:justify-start gap-4">
+            <HashLink 
+              smooth 
+              to="/#tournaments"
+              className="bg-blue-600 text-white px-8 py-3.5 rounded-xl font-black uppercase italic hover:bg-blue-700 shadow-xl shadow-blue-600/30 transition-all hover:-translate-y-0.5 active:translate-y-0 text-center text-sm tracking-wider"
+            >
+              JOIN TOURNAMENT
+            </HashLink>
+
+            <HashLink 
+              smooth 
+              to="/#community"
+              className="border-2 border-zinc-950 px-8 py-3.5 rounded-xl hover:bg-zinc-950 hover:text-white text-zinc-950 font-black uppercase italic bg-white transition-all hover:-translate-y-0.5 active:translate-y-0 text-center text-sm tracking-wider"
+            >
+              Join US →
+            </HashLink>
+          </div>
+        </div>
+
+        {/* RIGHT SIDE: Animated Shuffle Cards */}
+        <div className="flex justify-center items-center w-full md:col-span-6">
+          {/* FIX 3: min-h ko thoda optimize kiya taaki layout tight baithe */}
+          <div 
+            className={`w-full max-w-none min-h-55 sm:min-h-65 p-6 sm:p-8 rounded-4xl text-white shadow-2xl transition-all duration-700 ease-in-out transform flex flex-col justify-between
+              ${cards[currentIndex].color} hover:scale-[1.01] border border-white/10`}
+          >
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-[0.4em] opacity-60">Discover</span>
+              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black mt-2 mb-3 leading-none italic uppercase tracking-tight">
+                {cards[currentIndex].title}
+              </h2>
+              <p className="font-bold text-xs sm:text-sm opacity-90 uppercase tracking-wide leading-snug max-w-xl">
+                {cards[currentIndex].info}
+              </p>
+              
+              <div className="mt-4 sm:mt-6 h-1 w-full bg-white/20 rounded-full overflow-hidden">
+                <div className="h-full bg-white transition-all duration-500 w-1/3 animate-pulse"></div>
+              </div>
+            </div>
+
+            <div className="mt-4">
+              {cards[currentIndex].isExternal ? (
+                <a 
+                  href={cards[currentIndex].link} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="inline-block text-center bg-white text-black font-black py-3 px-8 rounded-xl hover:bg-zinc-200 transition-all shadow-xl uppercase italic text-[10px] tracking-widest w-full sm:w-auto"
+                >
+                  WATCH NOW <span>→</span>
+                </a>
+              ) : (
+                <HashLink 
+                  smooth 
+                  to={cards[currentIndex].link}
+                  className="inline-block text-center bg-white text-black font-black py-3 px-8 rounded-xl hover:bg-zinc-200 transition-all shadow-xl uppercase italic text-[10px] tracking-widest w-full sm:w-auto"
+                >
+                  EXPLORE NOW <span>→</span>
+                </HashLink>
+              )}
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      {/* FIXED FOOTER MARGINS: Tightened Spacing */}
+      {/* FIX 4: mt-12 ko mt-4 kiya aur bottom padding blocks ko control kiya taaki next component upar khinch jaye */}
+      <div className="w-full max-w-7xl mx-auto flex flex-col gap-4 mt-15">
+        
+        {/* Recent Live Winners Bar */}
+        <div className="w-full bg-zinc-50 border border-zinc-200/60 rounded-xl px-4 py-2 flex items-center overflow-hidden text-[11px] font-bold text-zinc-700">
+          <span className="bg-red-500 text-white text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded mr-3 animate-pulse shrink-0">
+            LATEST WINNERS
+          </span>
+          <marquee className="uppercase tracking-wide text-zinc-600">
+            🔥 TR_ROHIT99 won ₹320 in Solo Match #1043 • ⚔️ TEAM_DEADLY secured Booyah! winning ₹1,200 • 💰 Payout processed for ALEX_FF via UPI • 🛡️ Fair Play Anti-Cheat logs clean for current season
+          </marquee>
+        </div>
+
+        {/* Bottom Trust Badges */}
+        {/* FIX 5: Padding-top 10 ko pt-4 kiya aur pb-8 ko pb-2 kiya */}
+        <div className="hidden pb-2 pt-8  md:flex justify-between  items-center border-t border-zinc-200/60">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl font-black text-blue-600 italic">50+</span>
+            <span className="text-[9px] font-black uppercase text-zinc-400 tracking-widest leading-none">Tournaments<br/><span className="text-zinc-950">Hosted</span></span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-2xl font-black text-purple-600 italic">10K+</span>
+            <span className="text-[9px] font-black uppercase text-zinc-400 tracking-widest leading-none">Active<br/><span className="text-zinc-950">Gamers</span></span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-2xl font-black text-emerald-600 italic">24H</span>
+            <span className="text-[9px] font-black uppercase text-zinc-400 tracking-widest leading-none">Guaranteed<br/><span className="text-zinc-950">Payouts</span></span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-2xl font-black text-orange-500 italic">FREE FIRE</span>
+            <span className="text-[9px] font-black uppercase text-zinc-400 tracking-widest leading-none">Dedicated<br/><span className="text-zinc-950">Platform</span></span>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export default Intro;
+</file>
+
+<file path="SupersEsports/src/components/JoinPage.jsx">
+import React, { useState } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom'; 
+import axios from 'axios';
+import Swal from 'sweetalert2';
+
+function JoinPage() {
+  const { id } = useParams(); 
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const [showPayment, setShowPayment] = useState(false);
+  const [squadName, setSquadName] = useState("");
+  const [utr, setUtr] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const fee = location.state?.fee || "0";
+  const title = location.state?.title || "Tournament";
+
+  const handleUpiPay = () => {
+    const upiId = "yourname@upi"; 
+    const name = "Supers Esports";
+    const amount = fee;
+    const note = `Entry_${title.replace(/\s+/g, '_')}_${squadName}`;
+    const upiLink = `upi://pay?pa=${upiId}&pn=${name}&am=${amount}&tn=${note}&cu=INR`;
+    window.location.href = upiLink;
+  };
+
+  const handleFinalSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!utr || utr.trim().length < 4) {
+      Swal.fire("Error", "Please enter a valid Transaction ID/UTR", "error");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      await axios.post(
+        "http://localhost:5000/api/tournaments/join",
+        { 
+          tournamentId: id, 
+          utr: utr, 
+          squadName: squadName 
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      Swal.fire({
+        title: "REQUEST SENT!",
+        text: "Payment verify hote hi apka slot confirm ho jayega.",
+        icon: "success",
+        background: "#18181b",
+        color: "#fff",
+        confirmButtonColor: "#ea580c"
+      });
+      navigate("/profile");
+    } catch (err) {
+      Swal.fire("Error", err.response?.data?.message || "Join karne mein dikqat aayi", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen text-white py-24 sm:py-32 px-4 sm:px-6 flex flex-col items-center justify-center ">
+      <button 
+        onClick={() => navigate("/")} 
+        className="mb-6 sm:mb-8 text-orange-500 font-black uppercase text-xs sm:text-sm tracking-wider hover:underline transition-all align-self-start md:align-self-auto cursor-pointer"
+      >
+        ← Back to Home
+      </button>
+      
+      {/* --- FORM CARD CONTAINER --- */}
+      <div className="w-full max-w-xl bg-zinc-900 border border-white/10 rounded-3xl md:rounded-[2.5rem] p-5 sm:p-10 shadow-2xl">
+        <h1 className="text-2xl sm:text-3xl font-black italic uppercase mb-4 text-orange-500 border-b border-white/5 pb-2">
+          {title}
+        </h1>
+        
+        {!showPayment ? (
+          <form className="space-y-5 sm:space-y-6" onSubmit={(e) => { e.preventDefault(); setShowPayment(true); }}>
+            <div>
+              <label className="block text-[10px] sm:text-xs font-black uppercase tracking-widest mb-2 text-zinc-400">
+                Squad Name
+              </label>
+              <input 
+                required
+                type="text" 
+                value={squadName}
+                onChange={(e) => setSquadName(e.target.value)}
+                placeholder="Enter your Squad Name" 
+                className="w-full bg-black border border-white/10 p-3 sm:p-4 rounded-xl sm:rounded-2xl outline-none focus:border-orange-500 transition-all font-bold text-white text-sm sm:text-base" 
+              />
+            </div>
+
+            <div className="p-4 sm:p-6 bg-orange-600/10 border border-orange-500/20 rounded-xl sm:rounded-2xl flex justify-between items-center">
+              <span className="font-bold text-zinc-400 uppercase text-xs sm:text-sm tracking-widest">Entry Fee</span>
+              <span className="text-2xl sm:text-3xl font-black text-white">₹{fee}</span>
+            </div>
+
+            <button type="submit" className="w-full bg-orange-600 hover:bg-orange-500 py-4 sm:py-5 rounded-xl sm:rounded-2xl font-black text-base sm:text-xl shadow-lg transition-all uppercase italic cursor-pointer">
+              Proceed to Pay ₹{fee}
+            </button>
+          </form>
+        ) : (
+          <div className="space-y-5 sm:space-y-6 animate-in fade-in zoom-in duration-300">
+            <p className="text-center text-zinc-400 font-bold italic text-sm sm:text-base">
+              Squad: <span className="text-white uppercase font-black">{squadName}</span>
+            </p>
+            
+            <div className="grid grid-cols-1 gap-4">
+              <button 
+                onClick={handleUpiPay}
+                className="w-full bg-zinc-800 border border-white/5 py-3.5 sm:py-4 rounded-xl sm:rounded-2xl font-black text-white hover:border-orange-500 transition-all flex items-center justify-center gap-2 sm:gap-3 text-xs sm:text-sm uppercase tracking-wide cursor-pointer"
+              >
+                📱 PAY VIA GPAY / PHONEPE
+              </button>
+            </div>
+
+            <div className="flex flex-col items-center py-2 sm:py-4 bg-black/30 rounded-xl sm:rounded-2xl border border-white/5">
+              <div className="w-32 h-32 sm:w-40 sm:h-40 bg-white p-2 rounded-xl mb-2 shadow-inner">
+                {/* FIX: Path ke aage '/' lagaya taaki public folder se direct load ho ske */}
+                <img src="/payment2.jpeg" alt="thakurrohit4546@oksbi" className="w-full h-full object-contain" />
+              </div>
+              <p className="text-[9px] sm:text-[10px] text-zinc-500 font-black uppercase tracking-widest">
+                Scan & Pay via any UPI App
+              </p>
+            </div>
+
+            <form onSubmit={handleFinalSubmit} className="space-y-5 sm:space-y-6">
+              <div className="pt-4 border-t border-white/5">
+                <label className="block text-[10px] sm:text-xs font-black uppercase tracking-widest mb-2 text-zinc-400">
+                  Transaction ID (UTR)
+                </label>
+                <input 
+                  required
+                  type="text" 
+                  value={utr}
+                  onChange={(e) => setUtr(e.target.value)}
+                  placeholder="Enter Transaction ID (12 digits)" 
+                  className="w-full bg-black border border-white/10 p-3 sm:p-4 rounded-xl sm:rounded-2xl outline-none focus:border-orange-500 transition-all text-white font-bold text-sm sm:text-base" 
+                />
+              </div>
+
+              <div className="flex flex-col gap-3 pt-2">
+                <button 
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-green-600 hover:bg-green-500 py-4 sm:py-5 rounded-xl sm:rounded-2xl font-black text-base sm:text-xl shadow-lg transition-all uppercase italic disabled:opacity-50 cursor-pointer"
+                >
+                  {loading ? "Verifying..." : "Confirm Joining"}
+                </button>
+                
+                <button 
+                  type="button"
+                  onClick={() => setShowPayment(false)} 
+                  className="w-full text-zinc-500 hover:text-zinc-400 font-black text-xs uppercase tracking-widest py-2 transition-all cursor-pointer"
+                >
+                  Back to Details
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+      </div>
+
+      {/* -----------------  CLEAN RULES SECTION ----------------- */}
+      <div className="w-full max-w-xl mt-12 bg-black border border-white/5 rounded-3xl p-6 sm:p-8 shadow-xl">
+        <div className="flex items-center gap-2 mb-6 border-b border-white/5 pb-3">
+          <span className="text-orange-500 font-bold text-base">⚠️</span>
+          <h2 className="text-lg sm:text-xl font-black italic uppercase tracking-tight text-white">
+            Tournament <span className="text-orange-500">Rules & Guidelines</span>
+          </h2>
+        </div>
+
+        <ul className="space-y-4 text-xs sm:text-sm font-bold text-zinc-400">
+          <li className="flex items-start gap-3">
+            <span className="text-orange-500 mt-0.5 shrink-0">01.</span>
+            <div>
+              <strong className="text-white block mb-1">MATCH RULES:</strong>
+              <span className="block text-zinc-400/80 leading-relaxed">
+                • Custom Room ID & Password will be shared before match<br />
+                • Teams must join on time<br />
+                • Late entry may result in no re-match<br />
+                • Device issues are player’s responsibility<br />
+                • All players must use their main IDs only
+              </span>
+            </div>
+          </li>
+          
+          <li className="flex items-start gap-3">
+            <span className="text-orange-500 mt-0.5 shrink-0">02.</span>
+            <div>
+              <strong className="text-white block mb-1">ALLOWED:</strong>
+              <ul className="list-none space-y-0.5 text-zinc-400/80">
+                <li>✔ Only in-game utilities allowed</li>
+                <li>✔ Character skills allowed</li>
+              </ul>
+            </div>
+          </li>
+
+          <li className="flex items-start gap-3">
+            <span className="text-orange-500 mt-0.5 shrink-0">03.</span>
+            <div>
+              <strong className="text-white block mb-1">STRICTLY NOT ALLOWED:</strong>
+              <ul className="list-none space-y-0.5 text-zinc-400/80">
+                <li>❌ Hacks / Mods / Scripts / Third-Party Apps</li>
+                <li>❌ Emulator / VPN / Any Third-Party Devices</li>
+                <li>❌ Teaming / Ghosting / Stream Sniping</li>
+                <li>❌ Sharing Room ID & Password</li>
+                <li>❌ Intentional Feeding / Match Fixing</li>
+                <li>❌ Glitch Abuse / Bug Exploitation</li>
+              </ul>
+            </div>
+          </li>
+
+          <li className="flex items-start gap-3">
+            <span className="text-orange-500 mt-0.5 shrink-0">04.</span>
+            <div>
+              <strong className="text-white block mb-2">POINTS SYSTEM:</strong> 
+              <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 bg-zinc-900/50 p-3 rounded-xl border border-white/5 font-mono text-[11px] text-zinc-300">
+                <div>🥇 1st – 12 Pts</div>
+                <div>🥈 2nd – 9 Pts</div>
+                <div>🥉 3rd – 8 Pts</div>
+                <div>4th – 7 Pts</div>
+                <div>5th – 6 Pts</div>
+                <div>6th – 5 Pts</div>
+                <div>7th – 4 Pts</div>
+                <div>8th – 3 Pts</div>
+                <div>9th – 2 Pts</div>
+                <div>10th – 1 Pt</div>
+              </div>
+              <p className="mt-2 text-orange-400 font-black">🔫 Kill Points: 1 Kill = 1 Point</p>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+export default JoinPage;
+</file>
+
+<file path="SupersEsports/src/components/Leaderboard.jsx">
+import React, { useState } from 'react';
+
+function Leaderboard() {
+  const [activeTab, setActiveTab] = useState('teams');
+
+  // Dummy Data
+  const teamsData = [
+    { rank: 1, name: "GodLike Esports", points: 250 },
+    { rank: 2, name: "Soul", points: 210 },
+    { rank: 3, name: "Team Xspark", points: 190 },
+     { rank: 4, name: "Team Gods", points: 190 },
+      { rank: 5, name: "Team Rusher", points: 190 },
+  ];
+
+  const playersData = [
+    { rank: 1, name: "LegendJod", points: 45 },
+    { rank: 2, name: "Darkvizard", points: 38 },
+    { rank: 3, name: "Goblin", points: 35 },
+     { rank: 4, name: "Zoro", points: 30 },
+      { rank: 5, name: "Kai", points: 25 },
+  ];
+
+  const displayData = activeTab === 'teams' ? teamsData : playersData;
+
+  return (
+    // Section id add ki taaki nav-links kaam karein aur responsive padding handle ho sake
+    <section id="leaderboard" className="py-12 md:py-20 text-white px-4 sm:px-6">
+      <div className="max-w-4xl mx-auto ">
+        {/* Title text-3xl on mobile, text-5xl on desktop */}
+        <h2 className="text-3xl sm:text-4xl md:text-5xl font-black italic p-2 bg-purple-600 uppercase text-center mb-8 md:mb-10 tracking-tight">
+          Leaderboard
+        </h2>
+        
+        {/* Toggle Buttons: sm:gap-4 aur text-sm mobile par width control karega */}
+        <div className="flex justify-center gap-2 sm:gap-4 mb-8 md:mb-12">
+          <button 
+            onClick={() => setActiveTab('teams')}
+            className={`px-5 py-2.5 sm:px-8 sm:py-3 rounded-full text-xs sm:text-sm font-bold transition-all ${
+              activeTab === 'teams' ? 'bg-blue-600 text-white' : 'bg-zinc-800 text-zinc-400'
+            }`}
+          >
+            TOP TEAMS
+          </button>
+          <button 
+            onClick={() => setActiveTab('players')}
+            className={`px-5 py-2.5 sm:px-8 sm:py-3 rounded-full text-xs sm:text-sm font-bold transition-all ${
+              activeTab === 'players' ? 'bg-purple-600 text-white' : 'bg-zinc-800 text-zinc-400'
+            }`}
+          >
+            TOP PLAYERS
+          </button>
+        </div>
+
+        {/* Leaderboard Table Container: overflow-x-auto is the ultimate mobile fix */}
+        <div className="bg-zinc-900 rounded-2xl md:rounded-4xl overflow-hidden border border-white/5 overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-700">
+          {/* min-w-[450px] guarantee karega ki table data mobile par bhi readable rahe bina kachra huye */}
+          <table className="w-full text-left min-w-112.5 md:min-w-full">
+            <thead className="bg-white/5 uppercase text-[10px] sm:text-xs tracking-widest text-zinc-500">
+              <tr>
+                <th className="p-4 sm:p-6 w-20 sm:w-28">Rank</th>
+                <th className="p-4 sm:p-6">Name</th>
+                <th className="p-4 sm:p-6 text-right w-24 sm:w-32">Points</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5 text-sm sm:text-base">
+              {displayData.map((item) => (
+                <tr key={item.rank} className="hover:bg-white/5 transition-colors">
+                  {/* Rank color tabs ke mutabik handle hoga */}
+                  <td className={`p-4 sm:p-6 font-black ${activeTab === 'teams' ? 'text-blue-500' : 'text-purple-500'}`}>
+                    #{item.rank}
+                  </td>
+                  <td className="p-4 sm:p-6 font-bold text-zinc-200 truncate max-w-45 sm:max-w-none">
+                    {item.name}
+                  </td>
+                  <td className="p-4 sm:p-6 text-right font-mono text-orange-500 font-bold">
+                    {item.points}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export default Leaderboard;
+</file>
+
+<file path="SupersEsports/src/components/LoginModal.jsx">
+import React, { useState } from 'react';
+import ReactDOM from 'react-dom';
+import axios from 'axios';
+import Swal from 'sweetalert2';
+
+function LoginModal({ isOpen, onClose, onLoginSuccess }) {
+  const [isLogin, setIsLogin] = useState(true);
+  const [loading, setLoading] = useState(false);
+  
+  // Backend ke model se match karne ke liye name aur phone use kiya
+  const [formData, setFormData] = useState({
+    name: '',     // Changed from username
+    email: '',
+    password: '',
+    phone: '',    // Changed from whatsapp
+    ign: ''
+  });
+
+  if (!isOpen) return null;
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    
+    const endpoint = isLogin ? '/api/auth/login' : '/api/auth/signup';
+    
+    try {
+      const res = await axios.post(`http://localhost:5000${endpoint}`, formData);
+      
+      if (isLogin) {
+        // 1. Browser ki memory (LocalStorage) mein data save karo
+        localStorage.setItem('token', res.data.token);
+        localStorage.setItem('user', JSON.stringify(res.data.user));
+        
+        // 2. App.jsx ki state update karo (Isse refresh par login rahega)
+        onLoginSuccess(res.data.user); 
+        onClose();
+        
+        Swal.fire({
+          icon: 'success',
+          title: 'WELCOME BACK!',
+          text: `Taiyar ho jao, ${res.data.user.name || 'Champion'}!`,
+          background: '#09090b',
+          color: '#fff',
+          confirmButtonColor: '#2563eb'
+        });
+      } else {
+        Swal.fire({
+          icon: 'success',
+          title: 'REGISTERED!',
+          text: 'Ab login karke battlefield join karein.',
+          background: '#09090b',
+          color: '#fff',
+          confirmButtonColor: '#2563eb'
+        });
+        setIsLogin(true);
+      }
+    } catch (err) {
+      Swal.fire({
+        icon: 'error',
+        title: 'OOPS...',
+        text: err.response?.data?.message || 'Check your credentials!',
+        background: '#09090b',
+        color: '#fff'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return ReactDOM.createPortal(
+    <div className="fixed inset-0 z-10000 flex items-center justify-center px-4">
+      <div className="fixed inset-0 bg-black/90 backdrop-blur-xl transition-opacity" onClick={onClose}></div>
+
+      <div className="relative bg-zinc-950 border border-white/10 w-full max-w-md p-10 rounded-[2.5rem] shadow-[0_0_80px_rgba(0,0,0,0.8)] animate-in fade-in zoom-in duration-300 overflow-hidden">
+        <div className="absolute -top-24 -left-24 w-48 h-48 bg-blue-600/20 blur-[80px]"></div>
+
+        <button onClick={onClose} className="absolute top-8 right-8 text-zinc-500 hover:text-white transition-all">✕</button>
+
+        <div className="mb-10 relative">
+          <h2 className="text-4xl font-black italic uppercase text-blue-500 tracking-tighter">
+            {isLogin ? 'Login' : 'Signup'}
+          </h2>
+          <p className="text-xs text-zinc-500 font-bold uppercase tracking-[0.3em] mt-2">
+            {isLogin ? 'Access your dashboard' : 'Join the elite squad'}
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4 relative max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+          
+          {!isLogin && (
+            <>
+              <div className="group">
+                <label className="block text-[10px] font-black uppercase text-zinc-500 mb-2 ml-1 tracking-widest group-focus-within:text-blue-500 transition-colors">Full Name</label>
+                <input name="name" required type="text" placeholder="Your Name" onChange={handleChange}
+                  className="w-full bg-black border border-white/5 p-4 rounded-2xl outline-none focus:border-blue-600 transition-all text-white font-bold" />
+              </div>
+              <div className="group">
+                <label className="block text-[10px] font-black uppercase text-zinc-500 mb-2 ml-1 tracking-widest group-focus-within:text-blue-500 transition-colors">In-Game Name</label>
+                <input name="ign" required type="text" placeholder="e.g. SUPERS_ROHIT" onChange={handleChange}
+                  className="w-full bg-black border border-white/5 p-4 rounded-2xl outline-none focus:border-blue-600 transition-all text-white font-bold" />
+              </div>
+              <div className="group">
+                <label className="block text-[10px] font-black uppercase text-zinc-500 mb-2 ml-1 tracking-widest group-focus-within:text-blue-500 transition-colors">WhatsApp No</label>
+                <input name="phone" required type="tel" placeholder="91XXXXXXXXXX" onChange={handleChange}
+                  className="w-full bg-black border border-white/5 p-4 rounded-2xl outline-none focus:border-blue-600 transition-all text-white font-bold" />
+              </div>
+            </>
+          )}
+
+          <div className="group">
+            <label className="block text-[10px] font-black uppercase text-zinc-500 mb-2 ml-1 tracking-widest group-focus-within:text-blue-500 transition-colors">Email Address</label>
+            <input name="email" required type="email" placeholder="email@example.com" onChange={handleChange}
+              className="w-full bg-black border border-white/5 p-4 rounded-2xl outline-none focus:border-blue-600 transition-all text-white font-bold" />
+          </div>
+
+          <div className="group">
+            <label className="block text-[10px] font-black uppercase text-zinc-500 mb-2 ml-1 tracking-widest group-focus-within:text-blue-500 transition-colors">Password</label>
+            <input name="password" required type="password" placeholder="••••••••" onChange={handleChange}
+              className="w-full bg-black border border-white/5 p-4 rounded-2xl outline-none focus:border-blue-600 transition-all text-white font-bold" />
+          </div>
+
+          <button type="submit" disabled={loading}
+            className="w-full bg-blue-600 hover:bg-blue-500 py-5 rounded-2xl font-black text-white uppercase italic tracking-[0.2em] transition-all mt-4 shadow-xl shadow-blue-600/20 active:scale-95 disabled:opacity-50">
+            {loading ? 'Processing...' : (isLogin ? 'Log In' : 'Create Account')}
+          </button>
+        </form>
+
+        <p className="text-center text-[10px] text-zinc-500 uppercase font-black mt-8 tracking-widest">
+          {isLogin ? "New member?" : "Already a player?"} 
+          <span onClick={() => setIsLogin(!isLogin)} className="text-blue-500 cursor-pointer ml-2 hover:underline">
+            {isLogin ? 'Register Now' : 'Login Here'}
+          </span>
+        </p>
+      </div>
+    </div>,
+    document.getElementById('modal-root')
+  );
+}
+
+export default LoginModal;
+</file>
+
+<file path="SupersEsports/src/components/Navbar.jsx">
+import React, { useState } from 'react';
+import { HashLink } from 'react-router-hash-link';
+import { useNavigate } from 'react-router-dom';
+
+function Navbar({ user, onOpenLogin, onLogout }) {
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false); // Mobile drawer status
+  const navigate = useNavigate();
+
+  // const displayName = user?.username || user?.name || "Player";
+
+  const closeMobileMenu = () => setIsMenuOpen(false);
+
+  return (
+    <>
+      <nav className="fixed top-0 left-0 w-full z-50 bg-white/60 backdrop-blur-md px-4 sm:px-6 py-4 flex justify-between items-center border-b border-white/10">
+        
+        {/* LEFT SECTION: Logo (Responsive Text Sizes) */}
+        <div className="shrink-0">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold cursor-pointer" onClick={() => { navigate("/"); closeMobileMenu(); }}>
+            <span className="text-blue-500 uppercase italic">Supers</span>{" "}
+            <span className="text-zinc-950 uppercase italic">Esports</span>
+          </h1>
+        </div>
+
+        {/* CENTER SECTION: Desktop Menu Links (Clean Center View) */}
+        <div className="hidden md:flex justify-center pl-70 flex-1 mx-4">
+          <ul className="flex gap-8 text-lg lg:text-xl uppercase italic tracking-widest">
+            <li><HashLink smooth to="/#" className="hover:text-blue-500 text-zinc-950 font-black cursor-pointer transition-colors">HOME</HashLink></li>
+            <li><HashLink smooth to="/#tournaments" className="hover:text-blue-500 text-zinc-950 font-black cursor-pointer transition-colors">TOURNAMENTS</HashLink></li>
+            <li><HashLink smooth to="/#leaderboard" className="hover:text-blue-500 text-zinc-950 font-black cursor-pointer transition-colors">LEADERBOARD</HashLink></li>
+            <li><HashLink smooth to="/#community" className="hover:text-purple-600 text-zinc-950 font-black cursor-pointer transition-colors">COMMUNITY</HashLink></li>
+          </ul>
+        </div>
+
+        {/* RIGHT SECTION: User Profile / Login / Hamburger Toggle */}
+        <div className="flex items-center gap-3 sm:gap-4 shrink-0">
+          {!user ? (
+            <button 
+              onClick={onOpenLogin}
+              className="px-4 py-2 sm:px-6  sm:py-2 font-black rounded-xl bg-purple-600 text-white uppercase italic text-xs sm:text-sm hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20 active:scale-95"
+            >
+              Login
+            </button>
+          ) : (
+            <div className="relative">
+              {/* Profile Pill Layout */}
+              <div className="flex items-center gap-2 sm:gap-3 bg-zinc-950/10 py-1 px-2 sm:px-3 rounded-full border border-zinc-950/5">
+                {/* <div className="hidden sm:flex flex-col text-right leading-none max-w-25 md:max-w-30">
+                  <span className="text-xs font-black text-zinc-950 uppercase italic truncate">
+                    {displayName}
+                  </span>
+                  <span className="text-[9px] font-bold text-blue-600 uppercase tracking-tight mt-0.5">
+                    Online
+                  </span>
+                </div> */}
+
+                <button 
+                  onClick={() => setShowProfileMenu(!showProfileMenu)}
+                  className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-blue-500 bg-zinc-900 flex items-center justify-center overflow-hidden hover:scale-105 transition-transform cursor-pointer shrink-0"
+                >
+                  <img 
+                    src="https://api.dicebear.com/9.x/bottts-neutral/svg"
+                    alt="Profile" 
+                    className="w-6 h-6 sm:w-8 sm:h-8 object-cover" 
+                  />
+                </button>
+              </div>
+
+              {/* Dropdown Menu */}
+              {showProfileMenu && (
+                <div className="absolute right-0 mt-3 w-48 bg-white border border-zinc-200 rounded-xl shadow-xl p-2 animate-in fade-in slide-in-from-top-2 duration-200 z-50">
+                  <div className="px-4 py-2 border-b border-zinc-100 mb-1">
+                    <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">IGN</p>
+                    <p className="text-xs font-black text-blue-600 truncate">{user.ign || 'N/A'}</p>
+                  </div>
+                  
+                  <button 
+                    onClick={() => { navigate("/profile"); setShowProfileMenu(false); closeMobileMenu(); }}
+                    className="w-full text-left px-4 py-2 text-xs font-black text-zinc-600 hover:bg-zinc-100 rounded-lg transition-colors"
+                  >
+                    MY TOURNAMENTS
+                  </button>
+                  
+                  <button 
+                    onClick={() => { onLogout(); setShowProfileMenu(false); closeMobileMenu(); }}
+                    className="w-full text-left px-4 py-2 text-xs font-black text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                  >
+                    LOGOUT
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* HAMBURGER TRIGGER BUTTON FOR MOBILE */}
+          <button 
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            className="flex md:hidden flex-col gap-1.5 justify-center items-center w-8 h-8 rounded-lg border border-zinc-950/10 active:scale-90 transition-all cursor-pointer"
+          >
+            <span className={`h-0.5 w-5 bg-zinc-950 rounded transition-all duration-300 ${isMenuOpen ? 'rotate-45 translate-y-2' : ''}`}></span>
+            <span className={`h-0.5 w-5 bg-zinc-950 rounded transition-all duration-300 ${isMenuOpen ? 'opacity-0' : ''}`}></span>
+            <span className={`h-0.5 w-5 bg-zinc-950 rounded transition-all duration-300 ${isMenuOpen ? '-rotate-45 -translate-y-1' : ''}`}></span>
+          </button>
+        </div>
+      </nav>
+
+      {/* MOBILE MOBILE LINKS DRAWER DROPDOWN */}
+      {isMenuOpen && (
+        <div className="md:hidden fixed top-18.25 left-0 w-full bg-white/95 backdrop-blur-lg border-b border-zinc-200 shadow-xl z-40 animate-in fade-in slide-in-from-top duration-300">
+          <ul className="flex flex-col divide-y divide-zinc-100 font-black text-zinc-950 text-base uppercase italic tracking-widest p-2">
+            <li>
+              <HashLink smooth to="/#" onClick={closeMobileMenu} className="block w-full px-6 py-4 hover:bg-zinc-50 active:text-blue-500 rounded-xl">HOME</HashLink>
+            </li>
+            <li>
+              <HashLink smooth to="/#tournaments" onClick={closeMobileMenu} className="block w-full px-6 py-4 hover:bg-zinc-50 active:text-blue-500 rounded-xl">TOURNAMENTS</HashLink>
+            </li>
+            <li>
+              <HashLink smooth to="/#leaderboard" onClick={closeMobileMenu} className="block w-full px-6 py-4 hover:bg-zinc-50 active:text-blue-500 rounded-xl">LEADERBOARD</HashLink>
+            </li>
+            <li>
+              <HashLink smooth to="/#community" onClick={closeMobileMenu} className="block w-full px-6 py-4 hover:bg-zinc-50 active:text-purple-600 rounded-xl">COMMUNITY</HashLink>
+            </li>
+          </ul>
+        </div>
+      )}
+    </>
+  );
+}
+
+export default Navbar;
+</file>
+
+<file path="SupersEsports/src/components/ProtectedRoute.jsx">
+// src/components/ProtectedRoute.jsx
+import { Navigate } from 'react-router-dom';
+
+const ProtectedRoute = ({ children }) => {
+  const token = localStorage.getItem('token');
+  
+  if (!token) {
+    // Agar token nahi hai, toh home page par bhej do
+    return <Navigate to="/" />;
+  }
+
+  return children;
+};
+
+export default ProtectedRoute;
+
+// ye check karega ki user ke paas login token hai ya nahi.
+</file>
+
+<file path="SupersEsports/src/components/TournamentCard.jsx">
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+
+function TournamentCard({ tournament, isLoggedIn, onOpenLogin }) {
+  const navigate = useNavigate();
+
+  // Database se dynamic slots nikalenge, agar nahi hai toh default 12 rahega
+  const totalSlots = tournament?.totalSlots || 12;
+  const joinedCount = tournament?.joinedUsers?.length || 0;
+  const slotsLeft = totalSlots - joinedCount;
+  
+  // Progress bar ki percentage dynamic calculate hogi
+  const progressWidth = Math.min((joinedCount / totalSlots) * 100, 100);
+
+  const handleJoinClick = () => {
+    if (!isLoggedIn) {
+      alert("Pehle Login karein!");
+      onOpenLogin();
+      return;
+    }
+    if (slotsLeft <= 0) {
+      alert("Slots Full! Agle tournament mein try karein.");
+      return;
+    }
+    navigate(`/join/${tournament?._id}`);
+  };
+
+  return (
+    <div className="bg-zinc-900/50 border border-white/5 rounded-[2.5rem] p-6 hover:border-blue-500/50 transition-all duration-500 group">
+      <div className="relative h-40 w-full mb-6 overflow-hidden rounded-3xl bg-zinc-800">
+        <img 
+          src="https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=800&auto=format&fit=crop" 
+          alt="Free Fire" 
+          className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500"
+        />
+      </div>
+
+      <h3 className="text-xl font-black uppercase italic text-white mb-4">
+        {tournament?.title || "FF Tournament"}
+      </h3>
+
+      <div className="space-y-3 mb-6">
+        <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
+          {/* Dynamic Slots: Ab database ke real slots ke hisab se badlega (e.g., 1/50, 2/12) */}
+          <span className="text-zinc-500">Filled: {joinedCount}/{totalSlots}</span>
+          <span className="text-blue-500">{slotsLeft > 0 ? `${slotsLeft} Left` : "0 Left"}</span>
+        </div>
+        
+        {/* Live Loading Progress Bar */}
+        <div className="w-full h-1.5 bg-black rounded-full overflow-hidden">
+          <div 
+            className="h-full bg-blue-600 transition-all duration-1000"
+            style={{ width: `${progressWidth}%` }}
+          ></div>
+        </div>
+      </div>
+
+      <button 
+        onClick={handleJoinClick}
+        disabled={slotsLeft <= 0}
+        className={`w-full py-4 rounded-2xl font-black uppercase italic text-xs transition-all ${
+          slotsLeft > 0 
+            ? "bg-white text-black hover:bg-blue-600 hover:text-white cursor-pointer" 
+            : "bg-zinc-800 text-zinc-500 cursor-not-allowed border border-white/5"
+        }`}
+      >
+        {slotsLeft > 0 ? "JOIN NOW" : "SLOTS FULL"}
+      </button>
+    </div>
+  );
+}
+
+export default TournamentCard;
+</file>
+
+<file path="SupersEsports/src/components/TournamentSection.jsx">
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import axios from "axios";
+import Swal from 'sweetalert2';
+
+function TournamentSection({ onOpenLogin }) {
+  const navigate = useNavigate();
+  const [index, setIndex] = useState(0);
+  const [tournaments, setTournaments] = useState([]);
+  const [loading, setLoading] = useState(true); // <-- Typo completely fixed here
+
+  useEffect(() => {
+    const fetchTournaments = async () => {
+      try {
+        const res = await axios.get('http://localhost:5000/api/tournaments');
+        if (res.data && res.data.length > 0) {
+          setTournaments(res.data);
+        } else {
+          setTournaments([]);
+        }
+      } catch (err) {
+        console.error("Fetch error:", err);
+        setTournaments([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchTournaments();
+  }, []);
+
+  // 🔄 Shuffling Interval System
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setIndex((prev) => (prev === 0 ? 1 : 0));
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // 🎯 INDEX BASED MAPPING WITH ALAG-ALAG TIMINGS
+  const leftCards = [
+    { 
+      data: tournaments[0] || { _id: null, totalSlots: 50, joinedUsers: [] }, 
+      title: tournaments[0]?.title || "Solo Master", 
+      img: "card1.png", 
+      fee: "50",
+      time: "📅 TODAY - 04:00 PM" 
+    },
+    { 
+      data: tournaments[1] || { _id: null, totalSlots: 8, joinedUsers: [] }, 
+      title: tournaments[1]?.title || "Clash Squad", 
+      img: "card2.png", 
+      fee: "100",
+      time: "📅 TODAY - 06:30 PM" 
+    }
+  ];
+
+  const rightCards = [
+    { 
+      data: tournaments[2] || { _id: null, totalSlots: 12, joinedUsers: [] }, 
+      title: tournaments[2]?.title || "Full Map Squad", 
+      img: "card5.png", 
+      fee: "200", 
+      time: "📅 TODAY - 08:00 PM" 
+    },
+    { 
+      data: tournaments[3] || { _id: null, totalSlots: 12, joinedUsers: [] }, 
+      title: tournaments[3]?.title || "Pro Tournament", 
+      img: "card6.png", 
+      fee: "500", 
+      time: "📅 TODAY - 10:00 PM" 
+    }
+  ];
+
+  const currentLeft = leftCards[index];
+  const currentRight = rightCards[index];
+
+  const handleJoin = (card) => {
+    const token = localStorage.getItem('token');
+
+    if (!token) {
+      Swal.fire({
+        title: 'HOLD ON!',
+        text: 'Login first to join the battle!',
+        icon: 'warning',
+        background: '#18181b',
+        color: '#fff',
+        confirmButtonColor: '#9333ea',
+        confirmButtonText: 'LOGIN NOW',
+      }).then((result) => {
+        if (result.isConfirmed && typeof onOpenLogin === "function") {
+          onOpenLogin();
+        }
+      });
+      return;
+    }
+
+    const targetId = card.data?._id;
+
+    if (!targetId) {
+       return Swal.fire({
+         title: "Tournament Error",
+         text: "DATA CANT BE LOADED IN DB ,TRY REFRESHING!",
+         icon: "error",
+         background: '#18181b',
+         color: '#fff'
+       });
+    }
+
+    const joinedCount = card.data?.joinedUsers?.length || 0;
+    const totalSlots = card.data?.totalSlots || 12;
+    if (joinedCount >= totalSlots) {
+      return Swal.fire({
+        title: "Slots Full!",
+        text: "THIS TOURNAMENT IS FULL!",
+        icon: "error",
+        background: '#18181b',
+        color: '#fff'
+       });
+    }
+
+    navigate(`/join/${targetId}`, { 
+      state: { title: card.title, fee: card.fee } 
+    });
+  };
+
+  if (loading) return (
+    <section id="tournaments" className="w-full bg-white py-24 text-center scroll-mt-20">
+      <div className="text-zinc-950 font-black italic tracking-tighter text-2xl animate-pulse">
+        LOADING ARENA...
+      </div>
+    </section>
+  );
+
+  return (
+    <section id="tournaments" className="relative block w-full pt-4 pb-12 md:pb-20 text-zinc-950 bg-white scroll-mt-20">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6">
+        
+        {/* HEADER AREA */}
+        <div className="text-center mb-10 md:mb-14">
+          <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-white bg-purple-500 p-2 text-center uppercase italic tracking-tight shadow-lg max-w-4xl mx-auto">
+            Tournaments
+          </h2>
+          
+          <p className="text-black font-black mt-4 max-w-2xl mx-auto uppercase tracking-[0.25em] text-[10px] sm:text-xs leading-relaxed italic border-x-2 border-purple-500/40 px-4 pt-7">
+            "Room ID & Password will be shared 15 mins before the match"
+          </p> 
+        </div>
+        
+        {/* Grid settings layout */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10">
+          
+          {/* LEFT CARD */}
+          <div className="relative h-72 sm:h-80 md:h-96 rounded-3xl md:rounded-[2.5rem] overflow-hidden border-2 border-orange-500/20 group shadow-2xl bg-zinc-900">
+            <img src={currentLeft.img} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt="FF" />
+            <div className="absolute inset-0 bg-black/75 opacity-0 group-hover:opacity-100 transition-all flex flex-col justify-center items-center text-center p-4 sm:p-6 text-white">
+              <h3 className="text-2xl sm:text-3xl font-black italic uppercase mb-1 px-2">{currentLeft.title}</h3>
+              
+              <p className="bg-orange-600 text-white px-3 py-1 rounded-full font-black text-[9px] sm:text-[10px] uppercase mb-2 tracking-widest">
+                Entry Fee: ₹{currentLeft.fee}
+              </p>
+              
+              <p className="text-orange-500 font-black mb-1 italic text-sm sm:text-base">
+                SLOTS: {currentLeft.data?.joinedUsers?.length || 0} / {currentLeft.data?.totalSlots || 12}
+              </p>
+
+              {/* TIMING DISPLAY */}
+              <p className="text-zinc-300 font-bold uppercase tracking-wider text-[11px] sm:text-xs bg-white/5 border border-white/10 px-3 py-1 rounded-lg mt-1">
+                {currentLeft.time}
+              </p>
+
+              <button 
+                onClick={() => handleJoin(currentLeft)}
+                className="bg-purple-600 text-white px-8 py-2.5 sm:px-10 sm:py-3 rounded-xl font-bold mt-4 sm:mt-5 uppercase italic hover:bg-white hover:text-black transition-all active:scale-95 shadow-lg text-xs sm:text-sm cursor-pointer"
+              >
+                JOIN NOW
+              </button>
+            </div>
+          </div>
+          
+
+          {/* RIGHT CARD */}
+          <div className="relative h-72 sm:h-80 md:h-96 rounded-3xl md:rounded-[2.5rem] overflow-hidden border-2 border-blue-500/20 group shadow-2xl bg-zinc-900">
+            <img src={currentRight.img} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt="FF" />
+            <div className="absolute inset-0 bg-black/75 opacity-0 group-hover:opacity-100 transition-all flex flex-col justify-center items-center text-center p-4 sm:p-6 text-white">
+              <h3 className="text-2xl sm:text-3xl font-black italic uppercase mb-1 px-2">{currentRight.title}</h3>
+              
+              <p className="bg-blue-600 text-white px-3 py-1 rounded-full font-black text-[9px] sm:text-[10px] uppercase mb-2 tracking-widest">
+                Entry Fee: ₹{currentRight.fee}
+              </p>
+              
+              <p className="text-blue-500 font-black mb-1 italic text-sm sm:text-base">
+                SLOTS: {currentRight.data?.joinedUsers?.length || 0} / {currentRight.data?.totalSlots || 12}
+              </p>
+
+              {/* TIMING DISPLAY */}
+              <p className="text-zinc-300 font-bold uppercase tracking-wider text-[11px] sm:text-xs bg-white/5 border border-white/10 px-3 py-1 rounded-lg mt-1">
+                {currentRight.time}
+              </p>
+
+              <button 
+                onClick={() => handleJoin(currentRight)}
+                className="bg-blue-600 text-white px-8 py-2.5 sm:px-10 sm:py-3 rounded-xl font-bold mt-4 sm:mt-5 uppercase italic hover:bg-white hover:text-black transition-all active:scale-95 shadow-lg text-xs sm:text-sm cursor-pointer"
+              >
+                JOIN NOW
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+        {/* MOTIVATIONAL QUOTE BELOW THE GRID */}
+        <div className="text-center mt-12">
+          <p className="text-zinc-500 font-black max-w-2xl mx-auto uppercase tracking-[0.25em] text-[10px] sm:text-xs leading-relaxed italic border-x-2 border-purple-500/40 px-4">
+            "Rise through the ranks, eliminate the squad, and claim your Booyah!"
+          </p> 
+        </div>
+
+      </div>
+    </section>
+  );
+}
+
+export default TournamentSection;
+</file>
+
+<file path="SupersEsports/src/components/UpcomingCategories.jsx">
+import React from 'react';
+
+function UpcomingCategories() {
+  const games = [
+    {
+      name: "BGMI / PUBG MOBILE",
+      img: "bgmi.jpg", // Ek rugged classic BGMI feel wali image
+      desc: "Squad Battle Royale • Tier 1 Scrims",
+      devPercent: 85, // Kitna percent develop ho chuka hai
+      status: "ALPHA TESTING"
+    },
+    {
+      name: "VALORANT",
+      img: "valo.jpg", // Valorant Jett/Phoenix style image
+      desc: "5v5 Competitive • Spike Rush",
+      devPercent: 40, // Kitna percent develop ho chuka hai
+      status: "CORE SETUP"
+    }
+  ];
+
+  return (
+    <section id="upcoming" className="py-24 text-white relative overflow-hidden ">
+      {/* Background Subtle Glow */}
+      <div className="absolute top-0 right-0 w-96 h-96 bg-zinc-800/20 blur-[150px] -z-10"></div>
+      
+      <div className="max-w-6xl mx-auto px-6">
+        <div className="text-center mb-16">
+          <h2 className="text-5xl font-black italic uppercase p-2 bg-pink-500 tracking-tighter mb-4 text-zinc-100">
+            Expand <span className="text-black">The Arena</span>
+          </h2>
+          <p className="text-zinc-500 font-bold uppercase tracking-widest pt-7 text-sm">
+            Upcoming battlegrounds arriving soon
+          </p>
+        </div>
+
+        {/* --- CARDS GRID (SABHI ORIGINAL HOVER & COMING SOON STYLING KE SATH) --- */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+          {games.map((game, index) => (
+            <div key={index} className="flex flex-col">
+              
+              {/* Actual Game Card Box */}
+              <div 
+                className="relative group overflow-hidden rounded-[2.5rem] border border-white/5 bg-zinc-950 aspect-16/10 shadow-2xl w-full"
+              >
+                {/* Image Container with Styling */}
+                <img 
+                  src={game.img} 
+                  alt={game.name} 
+                  className="w-full h-full object-cover transition-all duration-700 ease-in-out grayscale group-hover:grayscale-0 group-hover:scale-110"
+                />
+
+                {/* Black & White to subtle Gradient Overlay on Hover */}
+                <div className="absolute inset-0 bg-linear-to-t from-black via-black/80 to-black/10 transition-opacity duration-500"></div>
+
+                {/* Coming Soon Overlay - Positioned Center */}
+                <div className="absolute inset-0 flex items-center justify-center transition-all duration-500 opacity-0 group-hover:opacity-100 backdrop-blur-[2px]">
+                  <div className="px-8 py-3 bg-white text-black rounded-full shadow-2xl transform translate-y-10 group-hover:translate-y-0 transition-transform duration-500">
+                    <span className="text-sm font-black uppercase italic tracking-widest">
+                      COMING SOON
+                    </span>
+                  </div>
+                </div>
+
+                {/* Game Text - Bottom Left */}
+                <div className="absolute bottom-10 left-10 right-10">
+                  <div className="flex items-center gap-3 mb-2">
+                      <div className="w-2 h-2 rounded-full bg-zinc-600 group-hover:bg-green-500 transition-colors"></div>
+                      <span className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest group-hover:text-zinc-400 transition-colors">
+                          STATUS: DEVELOPMENT
+                      </span>
+                  </div>
+                  <h3 className="text-3xl font-black uppercase italic tracking-tight text-white group-hover:text-white transition-colors mb-1">
+                    {game.name}
+                  </h3>
+                  <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest group-hover:text-zinc-300 transition-colors">
+                    {game.desc}
+                  </p>
+                </div>
+              </div>
+
+              {/* --- DEVELOPMENT PROGRESS BAR (CARD KE BAHAR AUR NICHE) --- */}
+              <div className="mt-6 pt-10 px-4 w-full">
+                {/* Info Text Header */}
+                <div className="flex justify-between items-center mb-2 text-[11px] font-black tracking-wider uppercase">
+                  <span className="text-zinc-500">Launch Roadmap</span>
+                  <span className="text-pink-500 italic">{game.status} ({game.devPercent}%)</span>
+                </div>
+
+                {/* Outer Progress Tracker Track */}
+                <div className="w-full bg-zinc-900 border border-white/5 h-2 rounded-full overflow-hidden relative shadow-inner">
+                  <div 
+                    className="h-full bg-linear-to-r from-pink-500 to-rose-400 rounded-full transition-all duration-1000"
+                    style={{ width: `${game.devPercent}%` }}
+                  />
+                </div>
+              </div>
+
+            </div>
+          ))}
+        </div>
+
+      </div>
+    </section>
+  );
+}
+
+export default UpcomingCategories;
+</file>
+
+<file path="SupersEsports/src/index.css">
+@import "tailwindcss";
+</file>
+
+<file path="SupersEsports/src/main.jsx">
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import './index.css'
+import App from './App.jsx'
+
+createRoot(document.getElementById('root')).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+)
+</file>
+
+<file path="SupersEsports/src/pages/ProfilePage.jsx">
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import Swal from 'sweetalert2';
+
+function ProfilePage() {
+  const [user, setUser] = useState(null);
+  const [joinedMatches, setJoinedMatches] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          setLoading(false);
+          return;
+        }
+
+        // 1. Fetch User Profile
+        const userRes = await axios.get('http://localhost:5000/api/auth/me', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setUser(userRes.data);
+
+        // 2. Fetch Joined Tournaments
+        const matchesRes = await axios.get('http://localhost:5000/api/tournaments/my-matches', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setJoinedMatches(matchesRes.data || []);
+      } catch (err) {
+        console.error("Dashboard Fetch Error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDashboardData();
+  }, []);
+
+  // Room Details section render logic
+  const renderRoomDetails = (match) => {
+    const isApproved = match.status?.toLowerCase() === 'approved';
+    const info = match.tournamentInfo;
+
+    // Rule 1: Agar status approved nahi hai, toh credentials hide rakho
+    if (!isApproved) return null;
+
+    return (
+      <div className="mt-4 p-4 bg-purple-950/20 border border-purple-500/30 rounded-xl transition-all">
+        <p className="text-[10px] text-purple-400 uppercase font-black tracking-wider mb-3 flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-ping"></span>
+          Match Room Credentials
+        </p>
+
+        {/* Rule 2: Agar Admin ne MongoDB mein roomId daal di hai toh display karo */}
+        {info && info.roomId ? (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-black/40 p-2.5 rounded-lg border border-white/5">
+              <span className="text-[9px] text-zinc-500 block uppercase font-bold mb-0.5">Room ID</span>
+              <span className="font-mono text-sm text-white select-all font-black tracking-wider">{info.roomId}</span>
+            </div>
+            <div className="bg-black/40 p-2.5 rounded-lg border border-white/5">
+              <span className="text-[9px] text-zinc-500 block uppercase font-bold mb-0.5">Password</span>
+              <span className="font-mono text-sm text-white select-all font-black tracking-wider">{info.roomPassword || "No Pass"}</span>
+            </div>
+          </div>
+        ) : (
+          <p className="text-[11px] text-zinc-500 italic bg-black/20 p-2 rounded-lg text-center border border-dashed border-zinc-800">
+            ⏳ The admin is setting up the room. The room ID PASS will be available here 10-15 mins before match.
+          </p>
+        )}
+      </div>
+    );
+  };
+
+  if (loading) return (
+    <div className="min-h-screen bg-black flex items-center justify-center">
+      <h1 className="text-purple-500 font-black italic text-2xl animate-pulse uppercase">Loading Arena...</h1>
+    </div>
+  );
+
+  if (!user && !loading) return (
+    <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-white">
+      <p className="font-black italic uppercase">Session Expired. Please Login Again.</p>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-zinc-950 pt-28 pb-10 px-4 text-white font-sans">
+      <div className="max-w-3xl mx-auto">
+        
+        {/* USER HEADER */}
+        <div className="flex flex-col items-center mb-12">
+          <div className="w-24 h-24 rounded-full border-4 border-purple-600 p-1 bg-zinc-900 mb-4 shadow-[0_0_20px_rgba(147,51,234,0.3)]">
+            <img 
+              src="https://api.dicebear.com/9.x/toon-head/svg"
+  alt="avatar" 
+              className="w-full h-full rounded-full"
+            />
+          </div>
+          <h1 className="text-3xl font-black uppercase italic tracking-tighter text-white">
+            {user?.username || user?.name || "Player"}
+          </h1>
+          <p className="text-purple-500 font-bold text-xs tracking-[0.2em] mt-1">
+              IGN: {user?.ign || "NOT ASSIGNED"}
+          </p>
+        </div>
+
+        {/* MATCHES LIST */}
+        <div className="space-y-6">
+          <div className="flex items-center gap-4 mb-8 text-zinc-800">
+            <div className="h-px flex-1 bg-zinc-800"></div>
+            <h2 className="text-sm font-black uppercase italic text-zinc-500 tracking-[0.3em]">Combat History</h2>
+            <div className="h-px flex-1 bg-zinc-800"></div>
+          </div>
+
+          {joinedMatches.length > 0 ? (
+            joinedMatches.map((match, i) => (
+              <div 
+                key={i} 
+                className="bg-zinc-900/80 border border-white/5 p-6 rounded-2xl hover:border-purple-500/40 transition-all group shadow-xl"
+              >
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="font-black uppercase italic text-xl leading-tight group-hover:text-purple-400 transition-colors">
+                      {match.tournamentInfo?.title || "Free Fire Tournament"}
+                    </h3>
+                    <p className="text-zinc-500 text-[10px] font-bold uppercase mt-2 tracking-widest">
+                      Squad: <span className="text-zinc-300">{match.squadName}</span>
+                    </p>
+                  </div>
+                  
+                  <div className="text-right">
+                    <span className={`text-[9px] font-black uppercase px-3 py-1 rounded-md border ${
+                      match.status?.toLowerCase() === 'approved' 
+                      ? 'bg-green-500/10 text-green-500 border-green-500/20' 
+                      : 'bg-orange-500/10 text-orange-500 border-orange-500/20'
+                    }`}>
+                      {match.status || 'Pending'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* ID PASS COMPONENT */}
+                {renderRoomDetails(match)}
+              </div>
+            ))
+          ) : (
+            <div className="text-center py-20 bg-zinc-900/20 rounded-3xl border border-dashed border-zinc-800">
+              <p className="text-zinc-600 font-black uppercase italic text-sm tracking-widest">
+                No active deployments.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default ProfilePage;
+</file>
+
+<file path="SupersEsports/vite.config.js">
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
+// https://vite.dev/config/
+export default defineConfig({
+  plugins: [react(),tailwindcss(),],
+})
+</file>
+
+</files>

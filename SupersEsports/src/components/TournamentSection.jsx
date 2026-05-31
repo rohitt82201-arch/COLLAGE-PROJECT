@@ -3,16 +3,22 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import Swal from 'sweetalert2';
 
+// 🔥 SMART URL JUGAD: Localhost par local chalaega, Vercel par Render chalaega
+const API_URL = window.location.hostname === "localhost" 
+  ? "http://localhost:5000" 
+  : "https://supers-esports-backend.onrender.com"; // 👈 Dono jagah same Render URL rakhein
+
 function TournamentSection({ onOpenLogin }) {
   const navigate = useNavigate();
   const [index, setIndex] = useState(0);
   const [tournaments, setTournaments] = useState([]);
-  const [loading, setLoading] = useState(true); // <-- Typo completely fixed here
+  const [loading, setLoading] = useState(true); 
 
   useEffect(() => {
     const fetchTournaments = async () => {
       try {
-        const res = await axios.get('http://localhost:5000/api/tournaments');
+        // 🔥 REPLACED LOCALHOST WITH DYNAMIC API_URL
+        const res = await axios.get(`${API_URL}/api/tournaments`);
         if (res.data && res.data.length > 0) {
           setTournaments(res.data);
         } else {
@@ -22,7 +28,7 @@ function TournamentSection({ onOpenLogin }) {
         console.error("Fetch error:", err);
         setTournaments([]);
       } finally {
-        setLoading(false);
+        setLoading(false); //  FIXED: 'loading(false)' ko badal kar 'setLoading(false)' kar diya hai
       }
     };
     fetchTournaments();
