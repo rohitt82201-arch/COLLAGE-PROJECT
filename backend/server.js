@@ -1,20 +1,17 @@
-require('dotenv').config(); // Dotenv ko sabse upar load karo taaki credentials mil sakein
+require('dotenv').config(); 
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 
 const app = express(); 
 
-// 🔥 ULTIMATE CORS CONFIGURATION (Live Signup/Login Fix)
+// 🔥 STABLE & SAFE CORS CONFIGURATION (No Crash Guaranteed)
 app.use(cors({
-  origin: "https://collage-project-delta.vercel.app", // Tumhara Vercel Live Link
+  origin: "https://collage-project-delta.vercel.app", 
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
   credentials: true
 }));
-
-// Pre-flight (OPTIONS) requests ko global handle karo
-app.options('*', cors());
 
 // Middlewares
 app.use(express.json());
@@ -27,18 +24,18 @@ const authRoutes = require('./routes/authRoutes');
 app.use('/api/auth', authRoutes);
 app.use('/api/tournaments', tournamentRoutes); 
 
-// 🔥 DYNAMIC DATABASE CONNECTION (Local backend par local chalega, Cloud par Atlas)
+// Database Connection
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/supersEsports';
 
 mongoose.connect(MONGO_URI)
   .then(() => console.log("DB Connected Successfully!"))
   .catch(err => console.error("DB Connection Error:", err));
 
-// Base route test karne ke liye (Browser me check karne ke kaam aega)
+// Base route for testing
 app.get('/', (req, res) => {
   res.send("Supers Esports Backend is Running Live!");
 });
 
-// 🔥 DYNAMIC PORT FOR RENDER
+// Dynamic Port for Render
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
