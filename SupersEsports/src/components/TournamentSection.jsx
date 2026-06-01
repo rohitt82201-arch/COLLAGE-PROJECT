@@ -6,7 +6,7 @@ import Swal from 'sweetalert2';
 // 🔥 SMART URL JUGAD: Localhost par local chalaega, Vercel par Render chalaega
 const API_URL = window.location.hostname === "localhost" 
   ? "http://localhost:5000" 
-  : "https://collage-project-rd22.onrender.com"; // 👈 Dono jagah same Render URL rakhein
+  : "https://collage-project-rd22.onrender.com"; 
 
 function TournamentSection({ onOpenLogin }) {
   const navigate = useNavigate();
@@ -17,7 +17,6 @@ function TournamentSection({ onOpenLogin }) {
   useEffect(() => {
     const fetchTournaments = async () => {
       try {
-        // 🔥 REPLACED LOCALHOST WITH DYNAMIC API_URL
         const res = await axios.get(`${API_URL}/api/tournaments`);
         if (res.data && res.data.length > 0) {
           setTournaments(res.data);
@@ -28,7 +27,7 @@ function TournamentSection({ onOpenLogin }) {
         console.error("Fetch error:", err);
         setTournaments([]);
       } finally {
-        setLoading(false); //  FIXED: 'loading(false)' ko badal kar 'setLoading(false)' kar diya hai
+        setLoading(false); 
       }
     };
     fetchTournaments();
@@ -158,7 +157,9 @@ function TournamentSection({ onOpenLogin }) {
           {/* LEFT CARD */}
           <div className="relative h-72 sm:h-80 md:h-96 rounded-3xl md:rounded-[2.5rem] overflow-hidden border-2 border-orange-500/20 group shadow-2xl bg-zinc-900">
             <img src={currentLeft.img} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt="FF" />
-            <div className="absolute inset-0 bg-black/75 opacity-0 group-hover:opacity-100 transition-all flex flex-col justify-center items-center text-center p-4 sm:p-6 text-white">
+            
+            {/* 🔥 FIXED: opacity-100 on mobile, opacity-0 on desktop (md:), hover par back to 100 */}
+            <div className="absolute inset-0 bg-black/80 md:bg-black/75 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-300 flex flex-col justify-center items-center text-center p-4 sm:p-6 text-white">
               <h3 className="text-2xl sm:text-3xl font-black italic uppercase mb-1 px-2">{currentLeft.title}</h3>
               
               <p className="bg-orange-600 text-white px-3 py-1 rounded-full font-black text-[9px] sm:text-[10px] uppercase mb-2 tracking-widest">
@@ -176,7 +177,7 @@ function TournamentSection({ onOpenLogin }) {
 
               <button 
                 onClick={() => handleJoin(currentLeft)}
-                className="bg-purple-600 text-white px-8 py-2.5 sm:px-10 sm:py-3 rounded-xl font-bold mt-4 sm:mt-5 uppercase italic hover:bg-white hover:text-black transition-all active:scale-95 shadow-lg text-xs sm:text-sm cursor-pointer"
+                className="bg-purple-600 text-white px-8 py-2.5 sm:px-10 sm:py-3 rounded-xl font-bold mt-4 sm:mt-5 uppercase italic hover:bg-white hover:text-black md:hover:bg-white md:hover:text-black transition-all active:scale-95 shadow-lg text-xs sm:text-sm cursor-pointer z-10"
               >
                 JOIN NOW
               </button>
@@ -187,7 +188,9 @@ function TournamentSection({ onOpenLogin }) {
           {/* RIGHT CARD */}
           <div className="relative h-72 sm:h-80 md:h-96 rounded-3xl md:rounded-[2.5rem] overflow-hidden border-2 border-blue-500/20 group shadow-2xl bg-zinc-900">
             <img src={currentRight.img} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt="FF" />
-            <div className="absolute inset-0 bg-black/75 opacity-0 group-hover:opacity-100 transition-all flex flex-col justify-center items-center text-center p-4 sm:p-6 text-white">
+            
+            {/* 🔥 FIXED: opacity-100 on mobile, opacity-0 on desktop (md:), hover par back to 100 */}
+            <div className="absolute inset-0 bg-black/80 md:bg-black/75 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-300 flex flex-col justify-center items-center text-center p-4 sm:p-6 text-white">
               <h3 className="text-2xl sm:text-3xl font-black italic uppercase mb-1 px-2">{currentRight.title}</h3>
               
               <p className="bg-blue-600 text-white px-3 py-1 rounded-full font-black text-[9px] sm:text-[10px] uppercase mb-2 tracking-widest">
@@ -205,7 +208,7 @@ function TournamentSection({ onOpenLogin }) {
 
               <button 
                 onClick={() => handleJoin(currentRight)}
-                className="bg-blue-600 text-white px-8 py-2.5 sm:px-10 sm:py-3 rounded-xl font-bold mt-4 sm:mt-5 uppercase italic hover:bg-white hover:text-black transition-all active:scale-95 shadow-lg text-xs sm:text-sm cursor-pointer"
+                className="bg-blue-600 text-white px-8 py-2.5 sm:px-10 sm:py-3 rounded-xl font-bold mt-4 sm:mt-5 uppercase italic hover:bg-white hover:text-black md:hover:bg-white md:hover:text-black transition-all active:scale-95 shadow-lg text-xs sm:text-sm cursor-pointer z-10"
               >
                 JOIN NOW
               </button>
