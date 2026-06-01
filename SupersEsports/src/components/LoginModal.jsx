@@ -3,14 +3,14 @@ import ReactDOM from 'react-dom';
 import axios from 'axios';
 import Swal from 'sweetalert2';
 
-// 🔥 SMART URL JUGAD: Localhost par local chalaega, Vercel par Render chalaega
+// 🔥 FIXED SMART URL: Ab yeh tumhare naye Render link par request bhegega
 const API_URL = window.location.hostname === "localhost" 
   ? "http://localhost:5000" 
-  : "https://supers-esports-backend.onrender.com"; 
+  : "https://collage-project-rd22.onrender.com"; 
 
 function LoginModal({ isOpen, onClose, onLoginSuccess }) {
   const [isLogin, setIsLogin] = useState(true);
-  const [loading, setLoading] = useState(false); // 👈 State setup sahi hai
+  const [loading, setLoading] = useState(false); 
   
   const [formData, setFormData] = useState({
     name: '',     
@@ -28,7 +28,7 @@ function LoginModal({ isOpen, onClose, onLoginSuccess }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true); // 👈 FIXED: loading(true) ko badal kar setLoading(true) kiya
+    setLoading(true); 
     
     const endpoint = isLogin ? '/api/auth/login' : '/api/auth/signup';
     
@@ -39,7 +39,6 @@ function LoginModal({ isOpen, onClose, onLoginSuccess }) {
         localStorage.setItem('token', res.data.token);
         localStorage.setItem('user', JSON.stringify(res.data.user));
         
-        // Agar parent component (App.jsx ya Navbar.jsx) se function aaya hai toh hi run karega
         if (typeof onLoginSuccess === 'function') {
           onLoginSuccess(res.data.user); 
         }
@@ -74,7 +73,7 @@ function LoginModal({ isOpen, onClose, onLoginSuccess }) {
         color: '#fff'
       });
     } finally {
-      setLoading(false); // 👈 State reset sahi hai
+      setLoading(false); 
     }
   };
 
