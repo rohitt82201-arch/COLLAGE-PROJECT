@@ -6,7 +6,7 @@ import Swal from 'sweetalert2';
 // 🔥 SMART URL JUGAD: Localhost par local chalaega, Vercel par Render chalaega
 const API_URL = window.location.hostname === "localhost" 
   ? "http://localhost:5000" 
-  : "https://supers-esports-backend.onrender.com"; // 👈 Dono jagah same Render URL rakhein
+  : "https://collage-project-rd22.onrender.com"; // 👈 Dono jagah same Render URL rakhein
 
 function TournamentSection({ onOpenLogin }) {
   const navigate = useNavigate();
