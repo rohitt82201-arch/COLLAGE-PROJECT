@@ -1,8 +1,27 @@
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
-const { protect } = require('../middleware/authMiddleware');
 const mongoose = require('mongoose');
+const jwt = require('jsonwebtoken');
+
+// --- SAFE INLINE AUTH MIDDLEWARE (Taaki dependency crash na ho) ---
+const protect = async (req, res, next) => {
+    let token;
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+        try {
+            token = req.headers.authorization.split(' ')[1];
+            const secretKey = process.env.JWT_SECRET || 'YOUR_SECRET_KEY';
+            const decoded = jwt.verify(token, secretKey); 
+            req.user = await User.findById(decoded.id).select('-password');
+            return next();
+        } catch (error) {
+            return res.status(401).json({ message: 'Not authorized, token failed' });
+        }
+    }
+    if (!token) {
+        return res.status(401).json({ message: 'Not authorized, no token' });
+    }
+};
 
 // --- TOURNAMENT SCHEMA REGISTRATION FIX ---
 let Tournament;
@@ -22,10 +41,8 @@ if (mongoose.models.Tournament) {
 
 // 🌐 1. Fetch ALL Tournaments For Frontend Card Shuffling
 // @route   GET /api/tournaments
-// @desc    Get all tournaments from database
 router.get('/', async (req, res) => {
     try {
-        // Database se saare tournaments uthao
         const allTournaments = await Tournament.find({}).lean();
         res.status(200).json(allTournaments);
     } catch (error) {
@@ -35,28 +52,27 @@ router.get('/', async (req, res) => {
 });
 
 // @route   POST /api/tournaments/join
-// @desc    Join a specific tournament and save info inside user data
 router.post('/join', protect, async (req, res) => {
     try {
         const { tournamentId, utr, squadName } = req.body;
         const userId = req.user.id;
-
-        // 1. Validation: Pehle check karo user pehle se registered toh nahi hai
-        const userCheck = await User.findOne({ 
-            _id: userId, 
-            "joinedTournaments.tournamentId": tournamentId 
-        });
-
-        if (userCheck) {
-            return res.status(400).json({ message: "Bhai, aapne is tournament mein pehle hi register kar liya hai!" });
-        }
 
         const isValidId = mongoose.Types.ObjectId.isValid(tournamentId);
         if (!isValidId) {
             return res.status(400).json({ message: "Bhai, tournament ki ID sahi nahi hai!" });
         }
 
-        // 2. Tournament dhoondo taaki uska Title aur Slots verify kar sakein
+        // 1. Validation: Safe check with String conversion
+        const user = await User.findById(userId);
+        const alreadyJoined = user.joinedTournaments?.some(
+            (t) => t.tournamentId.toString() === tournamentId.toString()
+        );
+
+        if (alreadyJoined) {
+            return res.status(400).json({ message: "Bhai, aapne is tournament mein pehle hi register kar liya hai!" });
+        }
+
+        // 2. Tournament dhoondo
         const tournament = await Tournament.findById(tournamentId);
         if (!tournament) {
             return res.status(404).json({ message: "Bhai, yeh tournament database mein nahi mila!" });
@@ -73,14 +89,14 @@ router.post('/join', protect, async (req, res) => {
             $addToSet: { joinedUsers: userId }
         });
 
-        // 🔥 5. User collection mein tournamentId ke SATH tournamentTitle bhi save karo
+        // 5. User collection mein tournament save karo
         await User.findByIdAndUpdate(
             userId,
             {
                 $push: {
                     joinedTournaments: {
                         tournamentId: tournamentId,
-                        tournamentTitle: tournament.title || "Free Fire Tournament", // <-- Yeh line direct database mein Title degi
+                        tournamentTitle: tournament.title || "Free Fire Tournament", 
                         squadName: squadName,
                         paymentId: utr,
                         status: 'Pending',
@@ -88,7 +104,7 @@ router.post('/join', protect, async (req, res) => {
                     }
                 }
             },
-            { new: true, runValidators: false }
+            { new: true }
         );
 
         res.status(200).json({ message: "Registration successful! Slots updated live." });
@@ -117,7 +133,7 @@ router.get('/my-matches', protect, async (req, res) => {
 
             return {
                 tournamentId: item.tournamentId,
-                tournamentTitle: item.tournamentTitle || (tournamentDetails ? tournamentDetails.title : "Free Fire Tournament"), // Safe backup fallback
+                tournamentTitle: item.tournamentTitle || (tournamentDetails ? tournamentDetails.title : "Free Fire Tournament"), 
                 squadName: item.squadName,
                 paymentId: item.paymentId,
                 status: item.status || 'Pending',

@@ -4,25 +4,27 @@ const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-// --- AUTH MIDDLEWARE (Isse bina login wala user /me nahi dekh payega) ---
+// --- AUTH MIDDLEWARE (Crash Proof Setup) ---
 const protect = async (req, res, next) => {
     let token;
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
         try {
             token = req.headers.authorization.split(' ')[1];
-            const decoded = jwt.verify(token, 'YOUR_SECRET_KEY'); // Ensure this matches login
+            // 👈 process.env.JWT_SECRET use karein, fallback me humne key rakhi hai
+            const secretKey = process.env.JWT_SECRET || 'YOUR_SECRET_KEY';
+            const decoded = jwt.verify(token, secretKey); 
             req.user = await User.findById(decoded.id).select('-password');
-            next();
+            return next(); // return lagana zaroori hai
         } catch (error) {
-            res.status(401).json({ message: 'Not authorized, token failed' });
+            return res.status(401).json({ message: 'Not authorized, token failed' });
         }
     }
     if (!token) {
-        res.status(401).json({ message: 'Not authorized, no token' });
+        return res.status(401).json({ message: 'Not authorized, no token' });
     }
 };
 
-// 1. SIGNUP
+// 1. SIGNUP -> Live Endpoint: /api/auth/signup
 router.post('/signup', async (req, res) => {
     try {
         const { name, email, password, phone, ign } = req.body;
@@ -49,10 +51,9 @@ router.post('/signup', async (req, res) => {
     }
 });
 
-// 2. PROFILE ROUTE (Isse hi Profile Page par data dikhega)
+// 2. PROFILE ROUTE -> Live Endpoint: /api/auth/me
 router.get('/me', protect, async (req, res) => {
     try {
-        // .populate('joinedTournaments') se tournaments ki details milengi
         const user = await User.findById(req.user.id).populate('joinedTournaments');
         res.json(user);
     } catch (err) {
@@ -60,7 +61,7 @@ router.get('/me', protect, async (req, res) => {
     }
 });
 
-// 3. LOGIN
+// 3. LOGIN -> Live Endpoint: /api/auth/login
 router.post('/login', async (req, res) => {
     try {
         const { email, password } = req.body;
@@ -75,7 +76,9 @@ router.post('/login', async (req, res) => {
             return res.status(400).json({ message: "Invalid credentials" });
         }
 
-        const token = jwt.sign({ id: user._id }, 'YOUR_SECRET_KEY', { expiresIn: '1d' });
+        // 👈 process.env.JWT_SECRET use karein
+        const secretKey = process.env.JWT_SECRET || 'YOUR_SECRET_KEY';
+        const token = jwt.sign({ id: user._id }, secretKey, { expiresIn: '1d' });
         
         res.json({ 
             token, 
