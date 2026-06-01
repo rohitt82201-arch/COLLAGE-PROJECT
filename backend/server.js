@@ -3,9 +3,13 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 
 const app = express(); // 1. Sabse pehle app banna chahiye
+app.use(cors({
+  origin: "https://collage-project-delta.vercel.app", // 👈 Tumhara Vercel Live Link
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  credentials: true
+}));
 
 // 2. Middlewares (Inka order yahi rakhna)
-app.use(cors());
 app.use(express.json());
 
 // 3. Routes Import

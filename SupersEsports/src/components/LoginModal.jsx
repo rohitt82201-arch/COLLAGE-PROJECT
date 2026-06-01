@@ -6,11 +6,11 @@ import Swal from 'sweetalert2';
 // 🔥 SMART URL JUGAD: Localhost par local chalaega, Vercel par Render chalaega
 const API_URL = window.location.hostname === "localhost" 
   ? "http://localhost:5000" 
-  : "https://supers-esports-backend.onrender.com"; // 👈 Dono jagah same Render URL rakhein
+  : "https://supers-esports-backend.onrender.com"; 
 
 function LoginModal({ isOpen, onClose, onLoginSuccess }) {
   const [isLogin, setIsLogin] = useState(true);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false); // 👈 State setup sahi hai
   
   const [formData, setFormData] = useState({
     name: '',     
@@ -28,25 +28,28 @@ function LoginModal({ isOpen, onClose, onLoginSuccess }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    loading(true);
+    setLoading(true); // 👈 FIXED: loading(true) ko badal kar setLoading(true) kiya
     
     const endpoint = isLogin ? '/api/auth/login' : '/api/auth/signup';
     
     try {
-      // 🔥 REPLACED LOCALHOST CONCATENATION WITH DYNAMIC API_URL
       const res = await axios.post(`${API_URL}${endpoint}`, formData);
       
       if (isLogin) {
         localStorage.setItem('token', res.data.token);
         localStorage.setItem('user', JSON.stringify(res.data.user));
         
-        onLoginSuccess(res.data.user); 
+        // Agar parent component (App.jsx ya Navbar.jsx) se function aaya hai toh hi run karega
+        if (typeof onLoginSuccess === 'function') {
+          onLoginSuccess(res.data.user); 
+        }
+        
         onClose();
         
         Swal.fire({
           icon: 'success',
           title: 'WELCOME BACK!',
-          text: `Taiyar ho jao, ${res.data.user.name || 'Champion'}!`,
+          text: `Taiyar ho jao, ${res.data.user?.name || 'Champion'}!`,
           background: '#09090b',
           color: '#fff',
           confirmButtonColor: '#2563eb'
@@ -71,7 +74,7 @@ function LoginModal({ isOpen, onClose, onLoginSuccess }) {
         color: '#fff'
       });
     } finally {
-      setLoading(false);
+      setLoading(false); // 👈 State reset sahi hai
     }
   };
 
