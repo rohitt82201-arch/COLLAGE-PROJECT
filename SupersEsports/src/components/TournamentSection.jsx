@@ -41,17 +41,17 @@ function TournamentSection({ onOpenLogin }) {
     return () => clearInterval(interval);
   }, []);
 
-  // 🎯 INDEX BASED MAPPING WITH ALAG-ALAG TIMINGS
+  // 🎯 DYNAMIC DATA MAPPING (Safe Fallback ke Saath)
   const leftCards = [
     { 
-      data: tournaments[0] || { _id: null, totalSlots: 50, joinedUsers: [] }, 
+      data: tournaments[0] || null, 
       title: tournaments[0]?.title || "Solo Master", 
       img: "card1.png", 
       fee: "50",
       time: "📅 TODAY - 04:00 PM" 
     },
     { 
-      data: tournaments[1] || { _id: null, totalSlots: 8, joinedUsers: [] }, 
+      data: tournaments[1] || null, 
       title: tournaments[1]?.title || "Clash Squad", 
       img: "card2.png", 
       fee: "100",
@@ -61,14 +61,14 @@ function TournamentSection({ onOpenLogin }) {
 
   const rightCards = [
     { 
-      data: tournaments[2] || { _id: null, totalSlots: 12, joinedUsers: [] }, 
+      data: tournaments[2] || null, 
       title: tournaments[2]?.title || "Full Map Squad", 
       img: "card5.png", 
       fee: "200", 
       time: "📅 TODAY - 08:00 PM" 
     },
     { 
-      data: tournaments[3] || { _id: null, totalSlots: 12, joinedUsers: [] }, 
+      data: tournaments[3] || null, 
       title: tournaments[3]?.title || "Pro Tournament", 
       img: "card6.png", 
       fee: "500", 
@@ -82,6 +82,7 @@ function TournamentSection({ onOpenLogin }) {
   const handleJoin = (card) => {
     const token = localStorage.getItem('token');
 
+    // 1. Auth Check
     if (!token) {
       Swal.fire({
         title: 'HOLD ON!',
@@ -99,18 +100,20 @@ function TournamentSection({ onOpenLogin }) {
       return;
     }
 
+    // 2. Database ID Check
     const targetId = card.data?._id;
 
     if (!targetId) {
        return Swal.fire({
          title: "Tournament Error",
-         text: "DATA CANT BE LOADED IN DB ,TRY REFRESHING!",
+         text: "DATA CAN'T BE LOADED FROM DB, TRY REFRESHING!",
          icon: "error",
          background: '#18181b',
          color: '#fff'
        });
     }
 
+    // 3. Slots Full Check
     const joinedCount = card.data?.joinedUsers?.length || 0;
     const totalSlots = card.data?.totalSlots || 12;
     if (joinedCount >= totalSlots) {
@@ -123,6 +126,7 @@ function TournamentSection({ onOpenLogin }) {
        });
     }
 
+    // 🚀 Sahi Navigation with State Passing
     navigate(`/join/${targetId}`, { 
       state: { title: card.title, fee: card.fee } 
     });
@@ -158,7 +162,6 @@ function TournamentSection({ onOpenLogin }) {
           <div className="relative h-72 sm:h-80 md:h-96 rounded-3xl md:rounded-[2.5rem] overflow-hidden border-2 border-orange-500/20 group shadow-2xl bg-zinc-900">
             <img src={currentLeft.img} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt="FF" />
             
-            {/* 🔥 FIXED: opacity-100 on mobile, opacity-0 on desktop (md:), hover par back to 100 */}
             <div className="absolute inset-0 bg-black/80 md:bg-black/75 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-300 flex flex-col justify-center items-center text-center p-4 sm:p-6 text-white">
               <h3 className="text-2xl sm:text-3xl font-black italic uppercase mb-1 px-2">{currentLeft.title}</h3>
               
@@ -167,10 +170,9 @@ function TournamentSection({ onOpenLogin }) {
               </p>
               
               <p className="text-orange-500 font-black mb-1 italic text-sm sm:text-base">
-                SLOTS: {currentLeft.data?.joinedUsers?.length || 0} / {currentLeft.data?.totalSlots || 12}
+                SLOTS: {currentLeft.data?.joinedUsers?.length || 0} / {currentLeft.data?.totalSlots || 50}
               </p>
 
-              {/* TIMING DISPLAY */}
               <p className="text-zinc-300 font-bold uppercase tracking-wider text-[11px] sm:text-xs bg-white/5 border border-white/10 px-3 py-1 rounded-lg mt-1">
                 {currentLeft.time}
               </p>
@@ -189,7 +191,6 @@ function TournamentSection({ onOpenLogin }) {
           <div className="relative h-72 sm:h-80 md:h-96 rounded-3xl md:rounded-[2.5rem] overflow-hidden border-2 border-blue-500/20 group shadow-2xl bg-zinc-900">
             <img src={currentRight.img} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt="FF" />
             
-            {/* 🔥 FIXED: opacity-100 on mobile, opacity-0 on desktop (md:), hover par back to 100 */}
             <div className="absolute inset-0 bg-black/80 md:bg-black/75 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-300 flex flex-col justify-center items-center text-center p-4 sm:p-6 text-white">
               <h3 className="text-2xl sm:text-3xl font-black italic uppercase mb-1 px-2">{currentRight.title}</h3>
               
@@ -201,7 +202,6 @@ function TournamentSection({ onOpenLogin }) {
                 SLOTS: {currentRight.data?.joinedUsers?.length || 0} / {currentRight.data?.totalSlots || 12}
               </p>
 
-              {/* TIMING DISPLAY */}
               <p className="text-zinc-300 font-bold uppercase tracking-wider text-[11px] sm:text-xs bg-white/5 border border-white/10 px-3 py-1 rounded-lg mt-1">
                 {currentRight.time}
               </p>
@@ -217,7 +217,7 @@ function TournamentSection({ onOpenLogin }) {
 
         </div>
 
-        {/* MOTIVATIONAL QUOTE BELOW THE GRID */}
+        {/* MOTIVATIONAL QUOTE */}
         <div className="text-center mt-12">
           <p className="text-zinc-500 font-black max-w-2xl mx-auto uppercase tracking-[0.25em] text-[10px] sm:text-xs leading-relaxed italic border-x-2 border-purple-500/40 px-4">
             "Rise through the ranks, eliminate the squad, and claim your Booyah!"
