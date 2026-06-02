@@ -2,6 +2,11 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import Swal from 'sweetalert2';
 
+// 🔥 SMART URL JUGAD: Localhost par local chalaega, Vercel par Render chalaega
+const API_URL = window.location.hostname === "localhost" 
+  ? "http://localhost:5000" 
+  : "https://collage-project-rd22.onrender.com"; 
+
 function ProfilePage() {
   const [user, setUser] = useState(null);
   const [joinedMatches, setJoinedMatches] = useState([]);
@@ -16,14 +21,14 @@ function ProfilePage() {
           return;
         }
 
-        // 1. Fetch User Profile
-        const userRes = await axios.get('http://localhost:5000/api/auth/me', {
+        // 1. Fetch User Profile (Updated to dynamic API_URL)
+        const userRes = await axios.get(`${API_URL}/api/auth/me`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setUser(userRes.data);
 
-        // 2. Fetch Joined Tournaments
-        const matchesRes = await axios.get('http://localhost:5000/api/tournaments/my-matches', {
+        // 2. Fetch Joined Tournaments (Updated to dynamic API_URL)
+        const matchesRes = await axios.get(`${API_URL}/api/tournaments/my-matches`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setJoinedMatches(matchesRes.data || []);
@@ -93,7 +98,7 @@ function ProfilePage() {
           <div className="w-24 h-24 rounded-full border-4 border-purple-600 p-1 bg-zinc-900 mb-4 shadow-[0_0_20px_rgba(147,51,234,0.3)]">
             <img 
               src="https://api.dicebear.com/9.x/toon-head/svg"
-  alt="avatar" 
+              alt="avatar" 
               className="w-full h-full rounded-full"
             />
           </div>
